@@ -62,16 +62,20 @@ class VoiceInputManager(private val context: Context) {
             _partialText.value = ""
 
             val recognizer = try {
-                SpeechRecognizer.createSpeechRecognizer(context.applicationContext)
+                SpeechRecognizer.createSpeechRecognizer(context) ?: SpeechRecognizer.createSpeechRecognizer(context.applicationContext)
             } catch (e: Exception) {
-                Log.e("VoiceInputManager", "Failed to create SpeechRecognizer", e)
-                _voiceState.value = VoiceState.Error("Failed to initialize speech recognition: ${e.message}")
-                return@post
+                Log.w("VoiceInputManager", "createSpeechRecognizer(context) failed, trying applicationContext", e)
+                try {
+                    SpeechRecognizer.createSpeechRecognizer(context.applicationContext)
+                } catch (e2: Exception) {
+                    Log.e("VoiceInputManager", "Failed to create SpeechRecognizer", e2)
+                    null
+                }
             }
 
             if (recognizer == null) {
                 _voiceState.value = VoiceState.Error(
-                    "Speech recognition service unavailable. Please check that Google Speech Services is enabled in your phone's Settings."
+                    "Background speech service unavailable. Tap 'Google Voice Dialog' below to speak via standard Android dialog."
                 )
                 return@post
             }

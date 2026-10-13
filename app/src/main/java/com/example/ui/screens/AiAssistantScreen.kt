@@ -1,7 +1,10 @@
 package com.example.ui.screens
 
 import android.Manifest
+import android.app.Activity
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -30,8 +33,11 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.RecordVoiceOver
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -76,6 +82,7 @@ import com.example.voice.VoiceState
 fun AiAssistantScreen(
     viewModel: SamsungRemoteViewModel,
     onNavigateToConnection: () -> Unit,
+    onNavigateToSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -87,10 +94,35 @@ fun AiAssistantScreen(
     var inputPrompt by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
 
+    // System Speech Recognizer Intent Launcher (Fail-safe for Galaxy M30s)
+    val speechIntentLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.trim()
+            if (!spoken.isNullOrBlank()) {
+                inputPrompt = spoken
+                viewModel.sendChatMessage(spoken)
+            }
+        }
+    }
+
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         if (isGranted) {
+            viewModel.startVoiceListening()
+        }
+    }
+
+    fun startSystemSpeechDialog() {
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "Ask your TV AI Assistant...")
+        }
+        try {
+            speechIntentLauncher.launch(intent)
+        } catch (_: Exception) {
             viewModel.startVoiceListening()
         }
     }
@@ -122,25 +154,53 @@ fun AiAssistantScreen(
             onReconnectClick = onNavigateToConnection
         )
 
-        // Subtitle / Header
+        // Subtitle / Header with developer credit and settings shortcut
         Row(
             modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = Icons.Default.AutoAwesome,
-                contentDescription = null,
-                tint = RemoteNeonGreen,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = "GEMINI SMART TV COMMAND ASSISTANT",
-                color = RemoteNeonGreen,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.5.sp
-            )
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        tint = RemoteNeonGreen,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "AI SMART TV ASSISTANT",
+                        color = RemoteNeonGreen,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp
+                    )
+                }
+                Text(
+                    text = "Made with love by Soumya ❤️",
+                    color = Color(0xFFFF80AB),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+
+            IconButton(
+                onClick = onNavigateToSettings,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(RemoteElevatedSurface)
+                    .border(1.dp, RemoteBorderColor, RoundedCornerShape(8.dp))
+                    .size(36.dp)
+                    .testTag("btn_ai_open_settings")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = "Configure Settings",
+                    tint = RemoteNeonGreen,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
         }
 
         // Quick Suggestions
@@ -212,6 +272,40 @@ fun AiAssistantScreen(
             }
         }
 
+        // Direct shortcut banner if API key is not configured or previous attempt failed
+        val lastError = chatMessages.lastOrNull { it.isError }
+        if (lastError != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0xFF2B1A1E))
+                    .border(1.dp, RemoteWarning.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                    .clickable { onNavigateToSettings() }
+                    .padding(horizontal = 12.dp, vertical = 9.dp)
+                    .testTag("banner_configure_ai_key")
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "⚙️ Configure AI API Key in Settings",
+                        color = RemoteWarning,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Open Settings →",
+                        color = RemoteNeonGreen,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
         // Chat Input Row
         Row(
             modifier = Modifier
@@ -240,23 +334,15 @@ fun AiAssistantScreen(
                     .testTag("ai_chat_input")
             )
 
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(6.dp))
 
-            // Mic
+            // Mic (Click for in-app speech or system dialog)
             IconButton(
                 onClick = {
-                    val hasPerm = ContextCompat.checkSelfPermission(
-                        context, Manifest.permission.RECORD_AUDIO
-                    ) == PackageManager.PERMISSION_GRANTED
-
-                    if (hasPerm) {
-                        viewModel.startVoiceListening()
-                    } else {
-                        permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                    }
+                    startSystemSpeechDialog()
                 },
                 modifier = Modifier
-                    .size(48.dp)
+                    .size(46.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(RemoteElevatedSurface)
                     .border(1.dp, RemoteBorderColor, RoundedCornerShape(12.dp))
@@ -276,7 +362,7 @@ fun AiAssistantScreen(
             IconButton(
                 onClick = { sendUserMessage(inputPrompt) },
                 modifier = Modifier
-                    .size(48.dp)
+                    .size(46.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(RemoteNeonGreen)
                     .testTag("ai_chat_send_button")
@@ -288,6 +374,29 @@ fun AiAssistantScreen(
                     modifier = Modifier.size(20.dp)
                 )
             }
+        }
+
+        // Made with love by Soumya Footer
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.Favorite,
+                contentDescription = null,
+                tint = Color(0xFFFF4081),
+                modifier = Modifier.size(13.dp)
+            )
+            Spacer(modifier = Modifier.width(5.dp))
+            Text(
+                text = "Made with love by Soumya",
+                color = RemoteTextSecondary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium
+            )
         }
     }
 }

@@ -39,6 +39,20 @@ class TvPreferences(context: Context) {
         get() = prefs.getBoolean("pref_use_gemini_ai", true)
         set(value) = prefs.edit().putBoolean("pref_use_gemini_ai", value).apply()
 
+    var aiProvider: String
+        get() = prefs.getString("pref_ai_provider", "gemini") ?: "gemini"
+        set(value) = prefs.edit().putString("pref_ai_provider", value.trim()).apply()
+
+    var customGeminiApiKey: String
+        get() = prefs.getString("pref_custom_gemini_api_key", "") ?: ""
+        set(value) = prefs.edit().putString("pref_custom_gemini_api_key", value.trim()).apply()
+
+    fun getEffectiveGeminiApiKey(): String {
+        val custom = customGeminiApiKey.trim()
+        if (custom.isNotBlank()) return custom
+        return com.example.BuildConfig.GEMINI_API_KEY.trim()
+    }
+
     var openRouterApiKey: String
         get() = prefs.getString("pref_openrouter_api_key", "") ?: ""
         set(value) = prefs.edit().putString("pref_openrouter_api_key", value.trim()).apply()

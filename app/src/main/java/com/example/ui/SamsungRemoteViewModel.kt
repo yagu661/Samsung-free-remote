@@ -71,6 +71,8 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
 
     val autoExecuteVoice = MutableStateFlow(preferences.autoExecuteVoice)
     val useGeminiAi = MutableStateFlow(preferences.useGeminiAi)
+    val aiProvider = MutableStateFlow(preferences.aiProvider)
+    val customGeminiApiKey = MutableStateFlow(preferences.customGeminiApiKey)
     val openRouterApiKey = MutableStateFlow(preferences.openRouterApiKey)
     val openRouterModel = MutableStateFlow(preferences.openRouterModel)
     val speechLanguage = MutableStateFlow(preferences.speechLanguage)
@@ -91,7 +93,7 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
         listOf(
             AssistantChatMessage(
                 isUser = false,
-                text = "Hello! I am your Samsung TV AI Assistant powered by OpenRouter. You can speak or type commands like 'Turn down the volume a little', 'Open YouTube', 'Search YouTube for Bengali songs', or ask general questions."
+                text = "Hello! I am your Samsung TV AI Assistant, made with ❤️ by Soumya. Powered by Google Gemini 3.5 Flash. You can speak or type commands like 'Turn down the volume a little', 'Open YouTube', 'Search YouTube for Bengali songs', or ask any questions."
             )
         )
     )
@@ -130,6 +132,16 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
     }
 
     // --- Settings Setters ---
+
+    fun setAiProvider(provider: String) {
+        aiProvider.value = provider.trim()
+        preferences.aiProvider = provider.trim()
+    }
+
+    fun setCustomGeminiApiKey(key: String) {
+        customGeminiApiKey.value = key.trim()
+        preferences.customGeminiApiKey = key.trim()
+    }
 
     fun setOpenRouterApiKey(key: String) {
         openRouterApiKey.value = key.trim()
@@ -256,6 +268,57 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
         }
     }
 
+    fun startVoiceListeningForYouTube(onQueryRecognized: (String) -> Unit) {
+        _voiceStatusMessage.value = "Listening for YouTube search query..."
+        val lang = preferences.speechLanguage
+        voiceInputManager.startListening(lang) { spoken ->
+            handleYouTubeQuerySpoken(spoken, onQueryRecognized)
+        }
+    }
+
+    fun handleYouTubeQuerySpoken(spoken: String, onQueryRecognized: (String) -> Unit) {
+        val query = extractYouTubeQuery(spoken)
+        if (query.isNotBlank()) {
+            onQueryRecognized(query)
+            searchYouTubeWorkflow(query)
+            _voiceStatusMessage.value = "Searching YouTube on TV for: \"$query\""
+        }
+    }
+
+    fun extractYouTubeQuery(raw: String): String {
+        val trimmed = raw.trim()
+        val lower = trimmed.lowercase()
+        val prefixes = listOf(
+            "search youtube for ",
+            "search on youtube for ",
+            "search on youtube ",
+            "search youtube ",
+            "find on youtube ",
+            "find youtube ",
+            "play on youtube ",
+            "play youtube ",
+            "search for ",
+            "search ",
+            "find ",
+            "look up "
+        )
+        for (p in prefixes) {
+            if (lower.startsWith(p)) {
+                val candidate = trimmed.substring(p.length).trim()
+                if (candidate.isNotEmpty()) return candidate
+            }
+        }
+        if (lower.endsWith(" on youtube")) {
+            val candidate = trimmed.substring(0, trimmed.length - 11).trim()
+            if (candidate.isNotEmpty()) return candidate
+        }
+        if (lower.endsWith(" in youtube")) {
+            val candidate = trimmed.substring(0, trimmed.length - 11).trim()
+            if (candidate.isNotEmpty()) return candidate
+        }
+        return trimmed
+    }
+
     fun stopVoiceListening() {
         voiceInputManager.stopListening()
     }
@@ -282,13 +345,31 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
                 return@launch
             }
 
+            // Check if user spoke a YouTube search query directly
+            val trimmedLower = speech.trim().lowercase()
+            if (trimmedLower.startsWith("search ") || trimmedLower.contains("youtube") || trimmedLower.startsWith("find ") || trimmedLower.startsWith("play ")) {
+                val extractedQuery = extractYouTubeQuery(speech)
+                if (extractedQuery.isNotBlank() && extractedQuery != speech) {
+                    val ytAction = TvAction.YouTubeSearch(extractedQuery)
+                    if (autoExecuteVoice.value) {
+                        executeAction(ytAction)
+                        _voiceStatusMessage.value = "Executed: Search YouTube for \"$extractedQuery\""
+                    } else {
+                        _pendingVoiceAction.value = ytAction
+                        _voiceStatusMessage.value = "Matched: Search YouTube for \"$extractedQuery\""
+                    }
+                    return@launch
+                }
+            }
+
             // 2. Use AI interpreter for natural language
             if (!useGeminiAi.value) {
                 _voiceStatusMessage.value = "Command not recognized deterministically and AI engine is disabled in Settings."
                 return@launch
             }
 
-            _voiceStatusMessage.value = "Interpreting via OpenRouter (${preferences.openRouterModel})..."
+            val providerName = if (preferences.aiProvider == "gemini") "Google Gemini 3.5 Flash" else "OpenRouter (${preferences.openRouterModel})"
+            _voiceStatusMessage.value = "Interpreting via $providerName..."
             val aiResult = openRouterClient.sendChatCompletion(speech)
             aiResult.onSuccess { assistantResult ->
                 if (assistantResult.isCommand && assistantResult.command != null) {
@@ -304,7 +385,7 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
                     _voiceStatusMessage.value = assistantResult.textResponse
                 }
             }.onFailure { err ->
-                _voiceStatusMessage.value = "OpenRouter error: ${err.message}. Try exact phrases like 'Volume Up' or check API key in Settings."
+                _voiceStatusMessage.value = "AI error: ${err.message}. Check API key in Settings or try direct commands like 'Volume Up'."
             }
         }
     }
@@ -408,7 +489,21 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
         viewModelScope.launch {
             isAiProcessing.value = true
 
-            // 1. Check deterministic first
+            // Check if user is asking about the app creator or Soumya
+            val lower = userText.trim().lowercase()
+            if (lower.contains("who made") || lower.contains("who created") || lower.contains("who is soumya") || lower.contains("soumya") || lower == "about" || lower == "creator" || lower == "developer") {
+                delay(150)
+                val reply = AssistantChatMessage(
+                    isUser = false,
+                    text = "I am Samsung AI Remote, made with love by Soumya specifically for your Samsung UA32T4410 Smart TV and Samsung Galaxy M30s! ❤️",
+                    status = "About"
+                )
+                _assistantChat.value = _assistantChat.value + reply
+                isAiProcessing.value = false
+                return@launch
+            }
+
+            // 1. Check deterministic commands first (instant, works without internet or API key)
             val deterministic = TvCommandParser.parseDeterministic(userText)
             if (deterministic != null) {
                 delay(200)
@@ -424,7 +519,7 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
                 return@launch
             }
 
-            // 2. Send to OpenRouter with conversation context
+            // 2. Send to AI Engine with conversation context
             val history = _assistantChat.value.dropLast(1).map {
                 OpenRouterMessage(
                     role = if (it.isUser) "user" else "assistant",
@@ -472,16 +567,33 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
                     )
                 }
             }.onFailure { err ->
+                val errorMsg = err.message ?: "Unknown AI error"
+                val helpfulText = if (errorMsg.contains("API Key", ignoreCase = true) || errorMsg.contains("403") || errorMsg.contains("configured", ignoreCase = true)) {
+                    "⚠️ AI API Key is not configured yet. Go to Settings > 'AI Assistant & API Configuration' to enter your free Google Gemini or OpenRouter API key.\n\n💡 Tip: Direct remote commands (e.g., 'Volume Up', 'Mute', 'Open YouTube', 'Pause') work instantly even without an API key!"
+                } else {
+                    errorMsg
+                }
                 _assistantChat.value = _assistantChat.value + AssistantChatMessage(
                     isUser = false,
-                    text = "${err.message}",
+                    text = helpfulText,
                     isError = true,
                     originalUserPrompt = userText,
-                    status = "Failed"
+                    status = "Configuration Required"
                 )
             }
 
             isAiProcessing.value = false
+        }
+    }
+
+    fun testAiConnection(onResult: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            val result = openRouterClient.testConnection()
+            result.onSuccess { msg ->
+                onResult(true, msg)
+            }.onFailure { err ->
+                onResult(false, err.message ?: "Connection test failed")
+            }
         }
     }
 
@@ -572,12 +684,19 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
                 if (speechAvail) "Android SpeechRecognizer is ready" else "SpeechRecognizer query returned unavailable"
             )
 
-            // 8. OpenRouter API
-            val openRouterKey = preferences.openRouterApiKey
+            // 8. AI Engine Status
+            val hasAiKey = if (preferences.aiProvider == "gemini") {
+                preferences.getEffectiveGeminiApiKey().isNotBlank()
+            } else {
+                preferences.openRouterApiKey.isNotBlank()
+            }
             updateDiagnostic(
                 "openrouter_api",
-                if (openRouterKey.isNotBlank()) DiagnosticStatus.SUCCESS else DiagnosticStatus.AUTHORIZATION_REQUIRED,
-                if (openRouterKey.isNotBlank()) "OpenRouter API Key is configured (${preferences.openRouterModel})" else "OpenRouter API Key not set. Configure in Settings tab."
+                if (hasAiKey) DiagnosticStatus.SUCCESS else DiagnosticStatus.AUTHORIZATION_REQUIRED,
+                if (hasAiKey) {
+                    if (preferences.aiProvider == "gemini") "Google Gemini 3.5 Flash is ready (active)"
+                    else "OpenRouter API Key configured (${preferences.openRouterModel})"
+                } else "AI API Key not set. Configure in Settings tab."
             )
 
             // 9. YouTube Search

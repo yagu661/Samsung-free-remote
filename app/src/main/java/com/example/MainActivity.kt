@@ -171,7 +171,8 @@ fun SamsungRemoteApp(viewModel: SamsungRemoteViewModel = viewModel()) {
                 RemoteScreen.ASSISTANT -> {
                     AiAssistantScreen(
                         viewModel = viewModel,
-                        onNavigateToConnection = { currentScreen = RemoteScreen.CONNECTION }
+                        onNavigateToConnection = { currentScreen = RemoteScreen.CONNECTION },
+                        onNavigateToSettings = { currentScreen = RemoteScreen.SETTINGS }
                     )
                 }
                 RemoteScreen.SETTINGS -> {

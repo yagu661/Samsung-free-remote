@@ -1,7 +1,11 @@
 package com.example.ui.screens
 
 import android.Manifest
+import android.app.Activity
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -36,9 +40,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
+import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -101,6 +107,18 @@ fun VoiceControlScreen(
     var manualTextInput by remember { mutableStateOf("") }
     val scrollState = rememberScrollState()
 
+    // System Speech Recognizer launcher (Fail-safe for Galaxy M30s)
+    val speechIntentLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.trim()
+            if (!spoken.isNullOrBlank()) {
+                viewModel.handleVoiceRecognized(spoken)
+            }
+        }
+    }
+
     // Permission launcher for RECORD_AUDIO
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -124,6 +142,18 @@ fun VoiceControlScreen(
         label = "pulseScale"
     )
 
+    fun startSystemSpeechDialog() {
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+            putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak a TV command (e.g. Volume Up, Open YouTube)...")
+        }
+        try {
+            speechIntentLauncher.launch(intent)
+        } catch (_: Exception) {
+            viewModel.startVoiceListening()
+        }
+    }
+
     fun onMicTapped() {
         if (isListening) {
             viewModel.stopVoiceListening()
@@ -133,7 +163,11 @@ fun VoiceControlScreen(
             ) == PackageManager.PERMISSION_GRANTED
 
             if (hasPerm) {
-                viewModel.startVoiceListening()
+                if (SpeechRecognizer.isRecognitionAvailable(context)) {
+                    viewModel.startVoiceListening()
+                } else {
+                    startSystemSpeechDialog()
+                }
             } else {
                 permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
             }
@@ -157,13 +191,22 @@ fun VoiceControlScreen(
         )
 
         // Screen Subtitle
-        Text(
-            text = "SAMSUNG AI VOICE REMOTE",
-            color = RemoteEmerald,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 1.sp
-        )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = "SAMSUNG AI VOICE REMOTE",
+                color = RemoteEmerald,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.sp
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = "Made with love by Soumya ❤️",
+                color = Color(0xFFFF80AB),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
 
         // Large Central Microphone Button
         Box(
@@ -213,6 +256,31 @@ fun VoiceControlScreen(
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium
         )
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .clip(RoundedCornerShape(10.dp))
+                .background(RemoteElevatedSurface)
+                .border(1.dp, RemoteBorderColor, RoundedCornerShape(10.dp))
+                .clickable { startSystemSpeechDialog() }
+                .padding(horizontal = 14.dp, vertical = 7.dp)
+                .testTag("btn_voice_system_dialog")
+        ) {
+            Icon(
+                imageVector = Icons.Default.RecordVoiceOver,
+                contentDescription = null,
+                tint = RemoteEmerald,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "Use System Voice Dialog (Fail-safe)",
+                color = RemoteEmerald,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
 
         // Live Recognition Card
         AnimatedVisibility(visible = partialText.isNotBlank() || isListening) {
@@ -473,6 +541,29 @@ fun VoiceControlScreen(
                     }
                 }
             }
+        }
+
+        // Made with love by Soumya
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 12.dp),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.Favorite,
+                contentDescription = null,
+                tint = androidx.compose.ui.graphics.Color(0xFFFF4081),
+                modifier = Modifier.size(15.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "Made with love by Soumya",
+                color = RemoteTextSecondary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium
+            )
         }
 
         Spacer(modifier = Modifier.height(24.dp))

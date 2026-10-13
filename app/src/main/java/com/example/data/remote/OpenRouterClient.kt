@@ -27,13 +27,14 @@ data class OpenRouterAssistantResult(
 class OpenRouterClient(
     private val preferences: TvPreferences,
     private val client: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(25, TimeUnit.SECONDS)
-        .readTimeout(35, TimeUnit.SECONDS)
-        .writeTimeout(25, TimeUnit.SECONDS)
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(45, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
         .build()
 ) {
 
     companion object {
+        private const val GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
         private const val OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
         val POPULAR_MODELS = listOf(
@@ -49,10 +50,101 @@ class OpenRouterClient(
         userPrompt: String,
         conversationHistory: List<OpenRouterMessage> = emptyList()
     ): Result<OpenRouterAssistantResult> = withContext(Dispatchers.IO) {
+        val provider = preferences.aiProvider
+        if (provider == "openrouter") {
+            sendOpenRouterCompletion(userPrompt, conversationHistory)
+        } else {
+            // Default: Google Gemini 3.5 Flash
+            sendGeminiCompletion(userPrompt, conversationHistory)
+        }
+    }
+
+    private suspend fun sendGeminiCompletion(
+        userPrompt: String,
+        conversationHistory: List<OpenRouterMessage>
+    ): Result<OpenRouterAssistantResult> {
+        val apiKey = preferences.getEffectiveGeminiApiKey()
+        if (apiKey.isBlank()) {
+            return Result.failure(
+                IllegalArgumentException("Gemini API Key is not configured. Please enter your API key in Settings > AI Configuration.")
+            )
+        }
+
+        val systemPrompt = preferences.aiSystemPrompt.ifBlank { TvPreferences.DEFAULT_SYSTEM_PROMPT }
+
+        try {
+            val contentsArray = JSONArray().apply {
+                conversationHistory.takeLast(6).forEach { msg ->
+                    put(JSONObject().apply {
+                        put("role", if (msg.role == "user") "user" else "model")
+                        put("parts", JSONArray().put(JSONObject().put("text", msg.content)))
+                    })
+                }
+                put(JSONObject().apply {
+                    put("role", "user")
+                    put("parts", JSONArray().put(JSONObject().put("text", userPrompt)))
+                })
+            }
+
+            val requestBodyJson = JSONObject().apply {
+                put("contents", contentsArray)
+                put("systemInstruction", JSONObject().apply {
+                    put("parts", JSONArray().put(JSONObject().put("text", systemPrompt)))
+                })
+                put("generationConfig", JSONObject().apply {
+                    put("temperature", 0.2)
+                    put("responseMimeType", "application/json")
+                })
+            }
+
+            val url = "$GEMINI_BASE_URL?key=$apiKey"
+            val request = Request.Builder()
+                .url(url)
+                .post(requestBodyJson.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+
+            val response = client.newCall(request).execute()
+            val code = response.code
+            val responseBody = response.body?.string() ?: ""
+
+            if (!response.isSuccessful) {
+                val errorMsg = when (code) {
+                    400 -> "Invalid Gemini API request ($code): ${parseErrorMessage(responseBody)}"
+                    403 -> "Gemini API key is invalid or lacks permissions (403). Configure your key in Settings."
+                    429 -> "Gemini rate limit reached (429). Please wait a few moments and try again."
+                    else -> "Gemini API Error ($code): ${parseErrorMessage(responseBody)}"
+                }
+                return Result.failure(Exception(errorMsg))
+            }
+
+            val jsonResponse = JSONObject(responseBody)
+            val candidates = jsonResponse.optJSONArray("candidates")
+            val firstCandidate = candidates?.optJSONObject(0)
+            val contentObj = firstCandidate?.optJSONObject("content")
+            val parts = contentObj?.optJSONArray("parts")
+            val rawContent = parts?.optJSONObject(0)?.optString("text", "")?.trim() ?: ""
+
+            if (rawContent.isBlank()) {
+                return Result.failure(Exception("Received empty response from Gemini."))
+            }
+
+            Log.d("OpenRouterClient", "Gemini response: $rawContent")
+            val parseResult = parseCommandOrChat(rawContent)
+            return Result.success(parseResult)
+        } catch (e: Exception) {
+            Log.e("OpenRouterClient", "Gemini request failed", e)
+            return Result.failure(e)
+        }
+    }
+
+    private suspend fun sendOpenRouterCompletion(
+        userPrompt: String,
+        conversationHistory: List<OpenRouterMessage>
+    ): Result<OpenRouterAssistantResult> {
         val apiKey = preferences.openRouterApiKey.trim()
         if (apiKey.isBlank()) {
-            return@withContext Result.failure(
-                IllegalArgumentException("OpenRouter API Key is not configured. Please enter your API key in Settings > OpenRouter Configuration.")
+            return Result.failure(
+                IllegalArgumentException("OpenRouter API Key is not configured. Please enter your API key in Settings > AI Configuration, or switch to Google Gemini.")
             )
         }
 
@@ -61,21 +153,16 @@ class OpenRouterClient(
 
         try {
             val messagesArray = JSONArray().apply {
-                // System Instruction
                 put(JSONObject().apply {
                     put("role", "system")
                     put("content", systemPrompt)
                 })
-
-                // Recent conversation history (keep last 6 turns to manage context and tokens)
                 conversationHistory.takeLast(6).forEach { msg ->
                     put(JSONObject().apply {
                         put("role", msg.role)
                         put("content", msg.content)
                     })
                 }
-
-                // Current User Input
                 put(JSONObject().apply {
                     put("role", "user")
                     put("content", userPrompt)
@@ -109,7 +196,7 @@ class OpenRouterClient(
                     503 -> "OpenRouter service or model is temporarily unavailable (503). Try again or switch models."
                     else -> "OpenRouter Error ($code): ${parseErrorMessage(responseBody)}"
                 }
-                return@withContext Result.failure(Exception(errorMsg))
+                return Result.failure(Exception(errorMsg))
             }
 
             val jsonResponse = JSONObject(responseBody)
@@ -119,17 +206,15 @@ class OpenRouterClient(
             val rawContent = messageObj?.optString("content", "")?.trim() ?: ""
 
             if (rawContent.isBlank()) {
-                return@withContext Result.failure(Exception("Received empty response from OpenRouter."))
+                return Result.failure(Exception("Received empty response from OpenRouter."))
             }
 
-            Log.d("OpenRouterClient", "Model response: $rawContent")
-
-            // Attempt to parse structured TV action
+            Log.d("OpenRouterClient", "OpenRouter response: $rawContent")
             val parseResult = parseCommandOrChat(rawContent)
-            Result.success(parseResult)
+            return Result.success(parseResult)
         } catch (e: Exception) {
-            Log.e("OpenRouterClient", "Request failed", e)
-            Result.failure(e)
+            Log.e("OpenRouterClient", "OpenRouter request failed", e)
+            return Result.failure(e)
         }
     }
 
@@ -181,6 +266,25 @@ class OpenRouterClient(
                 textResponse = raw,
                 isCommand = false
             )
+        }
+    }
+
+    suspend fun testConnection(): Result<String> = withContext(Dispatchers.IO) {
+        val provider = preferences.aiProvider
+        if (provider == "openrouter") {
+            val key = preferences.openRouterApiKey.trim()
+            if (key.isBlank()) {
+                return@withContext Result.failure(Exception("Please enter your OpenRouter API key first."))
+            }
+            val testResult = sendOpenRouterCompletion("Hello, test connection", emptyList())
+            testResult.map { "OpenRouter connected successfully! Ready to assist." }
+        } else {
+            val key = preferences.getEffectiveGeminiApiKey()
+            if (key.isBlank()) {
+                return@withContext Result.failure(Exception("Please enter your Gemini API key first."))
+            }
+            val testResult = sendGeminiCompletion("Hello, test connection", emptyList())
+            testResult.map { "Google Gemini connected successfully! Ready to assist." }
         }
     }
 
