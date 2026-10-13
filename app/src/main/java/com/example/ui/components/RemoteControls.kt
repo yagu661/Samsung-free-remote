@@ -21,11 +21,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.VolumeMute
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Pause
@@ -37,7 +38,6 @@ import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.VolumeDown
-import androidx.compose.material.icons.filled.VolumeMute
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -192,7 +192,7 @@ fun DpadControl(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Default.KeyboardArrowLeft,
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
                 contentDescription = "Left",
                 tint = RemoteTextPrimary,
                 modifier = Modifier.size(32.dp)
@@ -214,7 +214,7 @@ fun DpadControl(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Default.KeyboardArrowRight,
+                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                 contentDescription = "Right",
                 tint = RemoteTextPrimary,
                 modifier = Modifier.size(32.dp)
@@ -332,7 +332,7 @@ fun VolumeAndChannelSection(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             RemoteIconButton(
-                icon = Icons.Default.VolumeMute,
+                icon = Icons.AutoMirrored.Filled.VolumeMute,
                 contentDescription = "Mute",
                 onClick = { onSendKey(RemoteKey.KEY_MUTE) },
                 size = 54.dp,

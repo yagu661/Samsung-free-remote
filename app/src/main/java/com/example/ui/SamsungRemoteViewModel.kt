@@ -6,14 +6,15 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.local.TvPreferences
 import com.example.data.model.DiagnosticItem
 import com.example.data.model.DiagnosticStatus
+import com.example.data.model.DiscoveredTv
 import com.example.data.model.RemoteKey
 import com.example.data.model.TvAction
 import com.example.data.model.TvApp
 import com.example.data.model.TvConnectionState
 import com.example.data.model.TvConnectionStatus
-import com.example.data.model.DiscoveredTv
 import com.example.data.remote.DiscoveryState
-import com.example.data.remote.GeminiClient
+import com.example.data.remote.OpenRouterClient
+import com.example.data.remote.OpenRouterMessage
 import com.example.data.remote.SamsungTvController
 import com.example.data.remote.SamsungTvDiscoveryManager
 import com.example.data.remote.SamsungTvRestApi
@@ -34,6 +35,8 @@ data class AssistantChatMessage(
     val text: String,
     val action: TvAction? = null,
     val status: String? = null,
+    val isError: Boolean = false,
+    val originalUserPrompt: String? = null,
     val timestamp: Long = System.currentTimeMillis()
 )
 
@@ -53,7 +56,7 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
     private val preferences = TvPreferences(application)
     val tvController = SamsungTvController(application, preferences)
     val voiceInputManager = VoiceInputManager(application)
-    private val geminiClient = GeminiClient()
+    val openRouterClient = OpenRouterClient(preferences)
     private val restApi = SamsungTvRestApi()
     val discoveryManager = SamsungTvDiscoveryManager(application, restApi)
 
@@ -68,6 +71,10 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
 
     val autoExecuteVoice = MutableStateFlow(preferences.autoExecuteVoice)
     val useGeminiAi = MutableStateFlow(preferences.useGeminiAi)
+    val openRouterApiKey = MutableStateFlow(preferences.openRouterApiKey)
+    val openRouterModel = MutableStateFlow(preferences.openRouterModel)
+    val speechLanguage = MutableStateFlow(preferences.speechLanguage)
+    val aiSystemPrompt = MutableStateFlow(preferences.aiSystemPrompt)
 
     val ipAddressInput = MutableStateFlow(preferences.tvIp.ifBlank { "192.168.1." })
     val portInput = MutableStateFlow(preferences.tvPort)
@@ -84,7 +91,7 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
         listOf(
             AssistantChatMessage(
                 isUser = false,
-                text = "Hello! I am your Samsung TV AI Assistant. You can speak or type commands like 'Turn down the volume a little', 'Open YouTube', or 'Find cat videos on YouTube'."
+                text = "Hello! I am your Samsung TV AI Assistant powered by OpenRouter. You can speak or type commands like 'Turn down the volume a little', 'Open YouTube', 'Search YouTube for Bengali songs', or ask general questions."
             )
         )
     )
@@ -117,8 +124,41 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
             DiagnosticItem("key_cmd", "Basic Navigation Key", "Tests sending KEY_INFO or KEY_VOLUP"),
             DiagnosticItem("app_launch", "Application Launching", "Tests REST launch endpoint for YouTube"),
             DiagnosticItem("speech_rec", "Voice Recognition Engine", "Checks Android SpeechRecognizer availability"),
+            DiagnosticItem("openrouter_api", "OpenRouter AI Connectivity", "Checks if OpenRouter API key is configured"),
             DiagnosticItem("yt_search", "YouTube Search Support", "Tests YouTube launch and search query deep-link")
         )
+    }
+
+    // --- Settings Setters ---
+
+    fun setOpenRouterApiKey(key: String) {
+        openRouterApiKey.value = key.trim()
+        preferences.openRouterApiKey = key.trim()
+    }
+
+    fun setOpenRouterModel(model: String) {
+        openRouterModel.value = model.trim()
+        preferences.openRouterModel = model.trim()
+    }
+
+    fun setSpeechLanguage(lang: String) {
+        speechLanguage.value = lang.trim()
+        preferences.speechLanguage = lang.trim()
+    }
+
+    fun setAiSystemPrompt(prompt: String) {
+        aiSystemPrompt.value = prompt
+        preferences.aiSystemPrompt = prompt
+    }
+
+    fun setAutoExecuteVoice(enabled: Boolean) {
+        autoExecuteVoice.value = enabled
+        preferences.autoExecuteVoice = enabled
+    }
+
+    fun setUseGeminiAi(enabled: Boolean) {
+        useGeminiAi.value = enabled
+        preferences.useGeminiAi = enabled
     }
 
     // --- Connection Screen Actions ---
@@ -187,16 +227,6 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
         connectTv()
     }
 
-    fun setAutoExecuteVoice(enabled: Boolean) {
-        autoExecuteVoice.value = enabled
-        preferences.autoExecuteVoice = enabled
-    }
-
-    fun setUseGeminiAi(enabled: Boolean) {
-        useGeminiAi.value = enabled
-        preferences.useGeminiAi = enabled
-    }
-
     fun clearPairingToken() {
         preferences.clearToken()
         tvController.connectToTV(ipAddressInput.value.trim(), portInput.value, forceNewToken = true)
@@ -220,7 +250,8 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
     fun startVoiceListening() {
         _voiceStatusMessage.value = "Listening... Speak your command"
         _pendingVoiceAction.value = null
-        voiceInputManager.startListening { recognizedText ->
+        val lang = preferences.speechLanguage
+        voiceInputManager.startListening(lang) { recognizedText ->
             handleVoiceRecognized(recognizedText)
         }
     }
@@ -229,27 +260,51 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
         voiceInputManager.stopListening()
     }
 
+    fun cancelVoiceListening() {
+        voiceInputManager.cancelListening()
+        _voiceStatusMessage.value = "Voice recognition cancelled."
+    }
+
     fun handleVoiceRecognized(speech: String) {
         viewModelScope.launch {
             _voiceStatusMessage.value = "Recognized: \"$speech\". Analyzing command..."
 
-            // 1. Try deterministic parser first
+            // 1. Try deterministic parser first (zero latency, offline)
             val directAction = TvCommandParser.parseDeterministic(speech)
             if (directAction != null) {
-                _pendingVoiceAction.value = directAction
-                _voiceStatusMessage.value = "Matched command: ${getActionDescription(directAction)}"
+                if (autoExecuteVoice.value) {
+                    executeAction(directAction)
+                    _voiceStatusMessage.value = "Executed: ${getActionDescription(directAction)}"
+                } else {
+                    _pendingVoiceAction.value = directAction
+                    _voiceStatusMessage.value = "Matched command: ${getActionDescription(directAction)}"
+                }
                 return@launch
             }
 
-            // 2. Use Gemini AI interpreter for natural language
-            _voiceStatusMessage.value = "Using Gemini AI to interpret natural language..."
-            val aiResult = geminiClient.interpretVoiceCommand(speech)
-            aiResult.onSuccess { commandAi ->
-                val validatedAction = TvCommandParser.validateAndMapAiResult(commandAi)
-                _pendingVoiceAction.value = validatedAction
-                _voiceStatusMessage.value = "AI: ${commandAi.explanation}"
+            // 2. Use AI interpreter for natural language
+            if (!useGeminiAi.value) {
+                _voiceStatusMessage.value = "Command not recognized deterministically and AI engine is disabled in Settings."
+                return@launch
+            }
+
+            _voiceStatusMessage.value = "Interpreting via OpenRouter (${preferences.openRouterModel})..."
+            val aiResult = openRouterClient.sendChatCompletion(speech)
+            aiResult.onSuccess { assistantResult ->
+                if (assistantResult.isCommand && assistantResult.command != null) {
+                    val validatedAction = TvCommandParser.validateAndMapAiResult(assistantResult.command)
+                    if (autoExecuteVoice.value) {
+                        executeAction(validatedAction)
+                        _voiceStatusMessage.value = "Executed: ${getActionDescription(validatedAction)}"
+                    } else {
+                        _pendingVoiceAction.value = validatedAction
+                        _voiceStatusMessage.value = assistantResult.textResponse
+                    }
+                } else {
+                    _voiceStatusMessage.value = assistantResult.textResponse
+                }
             }.onFailure { err ->
-                _voiceStatusMessage.value = "AI interpretation failed: ${err.message}. Try exact phrases like 'Volume Up' or 'Open YouTube'."
+                _voiceStatusMessage.value = "OpenRouter error: ${err.message}. Try exact phrases like 'Volume Up' or check API key in Settings."
             }
         }
     }
@@ -322,7 +377,6 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
             // Step 2 verification
             val isConnected = connectionState.value.status == TvConnectionStatus.CONNECTED
             if (!isConnected) {
-                // TV not connected, but REST might still work if on Wi-Fi
                 _youtubeSearchState.value = _youtubeSearchState.value.copy(
                     step2TvConnected = false,
                     resultMessage = "WebSocket disconnected. Attempting REST app launch..."
@@ -343,7 +397,7 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
         }
     }
 
-    // --- Screen 5: AI Command Assistant ---
+    // --- Screen 5: AI Command Assistant (OpenRouter) ---
 
     fun sendChatMessage(userText: String) {
         if (userText.isBlank()) return
@@ -354,10 +408,10 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
         viewModelScope.launch {
             isAiProcessing.value = true
 
-            // Check deterministic first
+            // 1. Check deterministic first
             val deterministic = TvCommandParser.parseDeterministic(userText)
             if (deterministic != null) {
-                delay(300)
+                delay(200)
                 executeAction(deterministic)
                 val reply = AssistantChatMessage(
                     isUser = false,
@@ -370,47 +424,78 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
                 return@launch
             }
 
-            // AI interpretation
-            val aiResult = geminiClient.interpretVoiceCommand(userText)
-            aiResult.onSuccess { commandAi ->
-                val validated = TvCommandParser.validateAndMapAiResult(commandAi)
-                when (validated) {
-                    is TvAction.Unsupported -> {
-                        _assistantChat.value = _assistantChat.value + AssistantChatMessage(
-                            isUser = false,
-                            text = "Sorry, this action is unsupported on your Samsung Smart TV: ${validated.reason}",
-                            action = validated,
-                            status = "Unsupported"
-                        )
+            // 2. Send to OpenRouter with conversation context
+            val history = _assistantChat.value.dropLast(1).map {
+                OpenRouterMessage(
+                    role = if (it.isUser) "user" else "assistant",
+                    content = it.text
+                )
+            }
+
+            val aiResult = openRouterClient.sendChatCompletion(userText, history)
+            aiResult.onSuccess { assistantResult ->
+                if (assistantResult.isCommand && assistantResult.command != null) {
+                    val validated = TvCommandParser.validateAndMapAiResult(assistantResult.command)
+                    when (validated) {
+                        is TvAction.Unsupported -> {
+                            _assistantChat.value = _assistantChat.value + AssistantChatMessage(
+                                isUser = false,
+                                text = "Sorry, this action is not supported on your Samsung Smart TV: ${validated.reason}",
+                                action = validated,
+                                status = "Unsupported"
+                            )
+                        }
+                        is TvAction.ClarificationNeeded -> {
+                            _assistantChat.value = _assistantChat.value + AssistantChatMessage(
+                                isUser = false,
+                                text = validated.message,
+                                action = validated,
+                                status = "Needs Clarification"
+                            )
+                        }
+                        else -> {
+                            executeAction(validated)
+                            _assistantChat.value = _assistantChat.value + AssistantChatMessage(
+                                isUser = false,
+                                text = assistantResult.textResponse,
+                                action = validated,
+                                status = "Executed"
+                            )
+                        }
                     }
-                    is TvAction.ClarificationNeeded -> {
-                        _assistantChat.value = _assistantChat.value + AssistantChatMessage(
-                            isUser = false,
-                            text = validated.message,
-                            action = validated,
-                            status = "Needs Clarification"
-                        )
-                    }
-                    else -> {
-                        executeAction(validated)
-                        _assistantChat.value = _assistantChat.value + AssistantChatMessage(
-                            isUser = false,
-                            text = "Understood: ${commandAi.explanation}. Executing action...",
-                            action = validated,
-                            status = "Executed"
-                        )
-                    }
+                } else {
+                    // Conversational chat response
+                    _assistantChat.value = _assistantChat.value + AssistantChatMessage(
+                        isUser = false,
+                        text = assistantResult.textResponse,
+                        status = "Response"
+                    )
                 }
             }.onFailure { err ->
                 _assistantChat.value = _assistantChat.value + AssistantChatMessage(
                     isUser = false,
-                    text = "Could not process request via Gemini: ${err.message}. Please try again or use direct remote controls.",
+                    text = "${err.message}",
+                    isError = true,
+                    originalUserPrompt = userText,
                     status = "Failed"
                 )
             }
 
             isAiProcessing.value = false
         }
+    }
+
+    fun retryChatMessage(userText: String) {
+        sendChatMessage(userText)
+    }
+
+    fun clearChat() {
+        _assistantChat.value = listOf(
+            AssistantChatMessage(
+                isUser = false,
+                text = "Chat cleared. How can I help you control your Samsung Smart TV?"
+            )
+        )
     }
 
     // --- Screen 6: Diagnostics Suite ---
@@ -484,10 +569,18 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
             updateDiagnostic(
                 "speech_rec",
                 if (speechAvail) DiagnosticStatus.SUCCESS else DiagnosticStatus.UNSUPPORTED,
-                if (speechAvail) "Android SpeechRecognizer is ready" else "SpeechRecognizer not found on system"
+                if (speechAvail) "Android SpeechRecognizer is ready" else "SpeechRecognizer query returned unavailable"
             )
 
-            // 8. YouTube Search
+            // 8. OpenRouter API
+            val openRouterKey = preferences.openRouterApiKey
+            updateDiagnostic(
+                "openrouter_api",
+                if (openRouterKey.isNotBlank()) DiagnosticStatus.SUCCESS else DiagnosticStatus.AUTHORIZATION_REQUIRED,
+                if (openRouterKey.isNotBlank()) "OpenRouter API Key is configured (${preferences.openRouterModel})" else "OpenRouter API Key not set. Configure in Settings tab."
+            )
+
+            // 9. YouTube Search
             updateDiagnostic(
                 "yt_search",
                 if (infoRes.isSuccess) DiagnosticStatus.SUCCESS else DiagnosticStatus.UNSUPPORTED,

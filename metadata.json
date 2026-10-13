@@ -1,6 +1,6 @@
 {
   "name": "Samsung AI Remote",
-  "description": "Smart TV remote control with voice commands and Gemini AI integration for Samsung UA32T4410 and Tizen Smart TVs.",
+  "description": "Smart TV remote control with voice commands and OpenRouter AI integration for Samsung UA32T4410 and Tizen Smart TVs.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

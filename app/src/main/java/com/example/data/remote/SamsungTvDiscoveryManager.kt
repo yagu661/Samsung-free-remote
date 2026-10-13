@@ -194,6 +194,22 @@ class SamsungTvDiscoveryManager(
 
     private fun getLocalWifiIpAddress(wifiManager: WifiManager?): String? {
         return try {
+            val interfaces = java.net.NetworkInterface.getNetworkInterfaces()
+            while (interfaces.hasMoreElements()) {
+                val intf = interfaces.nextElement()
+                if (intf.isLoopback || !intf.isUp) continue
+                val addresses = intf.inetAddresses
+                while (addresses.hasMoreElements()) {
+                    val addr = addresses.nextElement()
+                    if (!addr.isLoopbackAddress && addr is java.net.Inet4Address) {
+                        val host = addr.hostAddress
+                        if (!host.isNullOrBlank() && !host.startsWith("127.")) {
+                            return host
+                        }
+                    }
+                }
+            }
+            @Suppress("DEPRECATION")
             val ipInt = wifiManager?.connectionInfo?.ipAddress ?: 0
             if (ipInt == 0) return null
             String.format(
