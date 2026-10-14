@@ -89,11 +89,25 @@ jobs:
           echo "Successfully created $TARGET_APK ($FILESIZE bytes)"
           ls -lh "$TARGET_APK"
 
-      - name: Upload APK Artifact
+      - name: Package Samsung TV Tizen App (.wgt)
+        run: |
+          echo "Packaging Samsung TV Assistant Web Application (.wgt)..."
+          cd tizen-assistant-app
+          rm -f SamsungAssistant.wgt
+          zip -r SamsungAssistant.wgt config.xml index.html css/ js/ icon.png
+          cp SamsungAssistant.wgt ../SamsungAssistant.wgt
+          cd ..
+          zip -r Samsung-TV-App-Termux-Installer.zip tizen-assistant-app/ -x "*.git*"
+          ls -lh SamsungAssistant.wgt Samsung-TV-App-Termux-Installer.zip
+
+      - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Samsung-AI-Remote-APK
-          path: Samsung-AI-Remote.apk
+          name: Samsung-TV-And-Remote-Suite
+          path: |
+            Samsung-AI-Remote.apk
+            SamsungAssistant.wgt
+            Samsung-TV-App-Termux-Installer.zip
           if-no-files-found: error
           retention-days: 30
 
@@ -101,31 +115,63 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "v-latest"
-          name: "Samsung AI Remote (Latest APK Build)"
+          name: "Samsung AI Remote & TV Assistant (Latest Builds)"
           body: |
-            ## 📱 Samsung AI Remote — Latest Android APK
+            ## 🚀 Samsung AI Remote & TV Assistant — Dual App Suite
 
-            Fresh installable Android APK automatically built and verified by **GitHub Actions**.
+            Fresh installable Android APK and Samsung Tizen TV package automatically built and verified by **GitHub Actions**.
 
-            ### 📦 Download:
-            - **Download File:** [Samsung-AI-Remote.apk](https://github.com/${{ github.repository }}/releases/download/v-latest/Samsung-AI-Remote.apk)
-            - **Target Phone:** Samsung Galaxy M30s (Android 11+)
-            - **Target Television:** Samsung UA32T4410AKXXL (Tizen OS)
-            - **Application ID:** `com.aistudio.samsungremote.ua32t`
-            - **Commit SHA:** `${{ github.sha }}`
-            - **Triggered Branch:** `${{ github.ref_name }}`
-            - **Build Status:** ✅ Passed & Verified
+            ### 📦 Downloads (Under Assets Below):
+            1. **📱 Android Phone Remote APK:** [Samsung-AI-Remote.apk](https://github.com/${{ github.repository }}/releases/download/v-latest/Samsung-AI-Remote.apk)
+               - **Target Phone:** Samsung Galaxy M30s (Android 11+)
+               - **Features:** Complete TV remote control, voice search, YouTube integration, OpenRouter / Gemini AI assistant, and built-in TV App installer server!
+            2. **📺 Samsung Smart TV App (.wgt):** [SamsungAssistant.wgt](https://github.com/${{ github.repository }}/releases/download/v-latest/SamsungAssistant.wgt)
+               - **Target TV:** Samsung UA32T4410AKXXL (Tizen OS 5.5 / 5.0)
+               - **Features:** Standalone 10-foot TV UI, YouTube player, Spotify, Netflix launcher, and on-screen AI assistant HUD!
+            3. **🛠️ Termux Installer Bundle:** [Samsung-TV-App-Termux-Installer.zip](https://github.com/${{ github.repository }}/releases/download/v-latest/Samsung-TV-App-Termux-Installer.zip)
+               - Includes `termux_sdb_deploy.py` and all TV app source files for 1-command deployment from Termux on your phone!
 
             ---
 
-            ### 📲 How to Install on your Samsung Galaxy M30s:
-            1. Under **Assets** below, tap **`Samsung-AI-Remote.apk`** to download it directly to your phone.
-            2. Open your phone's **My Files** app > **Downloads**.
-            3. Tap **Samsung-AI-Remote.apk**.
-            4. If prompted with *"For your security, your phone is not allowed to install unknown apps from this source"*, tap **Settings** and turn on **Allow from this source**.
-            5. Tap **Install** (or **Update**).
-            6. Connect your phone to the same Wi-Fi as your Samsung TV, open the app, and tap **"Find My Samsung TV"**!
-          files: Samsung-AI-Remote.apk
+            ### 📲 How to Download & Install the Phone Remote App:
+            1. Under **Assets** below, tap **`Samsung-AI-Remote.apk`** to download it to your Samsung Galaxy M30s.
+            2. Open **My Files** > **Downloads** > tap **Samsung-AI-Remote.apk** > tap **Install**.
+            3. Open the app and connect to your Samsung TV on the same Wi-Fi.
+
+            ---
+
+            ### 📺 How to Download & Install the TV App on your Samsung TV:
+
+            #### Method 1: Using the Phone Remote App (Simplest)
+            1. Install and open the **Samsung-AI-Remote.apk** on your Galaxy M30s.
+            2. Go to **Settings** > **Tizen TV Assistant App Installer**.
+            3. Tap **"Start TV Installer Server"** (it displays your phone's Wi-Fi IP).
+            4. On your TV:
+               - Open **Apps** > Press **1, 2, 3, 4, 5** on your remote.
+               - Turn **Developer Mode ON** and enter your phone's IP address.
+               - Restart TV by holding the remote **Power** button for 5 seconds.
+               - Open **Apps** > Options (gear icon) > **App Sync**.
+            5. The TV will download `SamsungAssistant.wgt` directly from your phone and install it into your TV's Apps menu!
+
+            #### Method 2: Download Directly from GitHub Releases & Deploy via Termux
+            1. In Termux on your Galaxy M30s, run:
+               ```bash
+               curl -L -O https://github.com/${{ github.repository }}/releases/download/v-latest/SamsungAssistant.wgt
+               ```
+               Or clone the repository:
+               ```bash
+               git pull origin main
+               cd tizen-assistant-app
+               python termux_sdb_deploy.py <TV_IP>
+               ```
+            2. Done! The TV app will be installed and ready to launch!
+
+            ---
+            *Commit SHA: `${{ github.sha }}` | Branch: `${{ github.ref_name }}` | Built with love by Soumya*
+          files: |
+            Samsung-AI-Remote.apk
+            SamsungAssistant.wgt
+            Samsung-TV-App-Termux-Installer.zip
           fail_on_unmatched_files: true
           make_latest: true
           token: ${{ secrets.GITHUB_TOKEN }}

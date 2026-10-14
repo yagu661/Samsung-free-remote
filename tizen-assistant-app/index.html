@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Samsung Smart TV AI Hub</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- Main TV Container (10-Foot 1080p Layout) -->
+    <div class="tv-app-container">
+
+        <!-- Left Navigation Rail -->
+        <nav class="tv-nav-rail" id="navRail">
+            <div class="nav-brand">
+                <div class="brand-icon">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 1.99-.9 1.99-2L23 5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z"/>
+                    </svg>
+                </div>
+                <div class="brand-text">
+                    <span class="app-title">AI TV HUB</span>
+                    <span class="app-badge">TIZEN 5.5</span>
+                </div>
+            </div>
+
+            <div class="nav-items-group" id="navItemsGroup">
+                <button class="nav-tab active" data-tab="home" tabindex="0" id="tabHome">
+                    <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+                    <span>Home</span>
+                </button>
+
+                <button class="nav-tab" data-tab="youtube" tabindex="0" id="tabYouTube">
+                    <svg viewBox="0 0 24 24" fill="#EF4444"><path d="M10 15l5.19-3L10 9v6m11.56-7.83c.13.47.22 1.1.28 1.9.07.8.1 1.49.1 2.09L22 12c0 2.19-.16 3.8-.44 4.83-.25.9-.83 1.48-1.73 1.73-.47.13-1.33.22-2.65.28-1.3.07-2.49.1-3.59.1L12 19c-4.19 0-6.8-.16-7.83-.44-.9-.25-1.48-.83-1.73-1.73-.13-.47-.22-1.1-.28-1.9-.07-.8-.1-1.49-.1-2.09L2 12c0-2.19.16-3.8.44-4.83.25-.9.83-1.48 1.73-1.73.47-.13 1.33-.22 2.65-.28 1.3-.07 2.49-.1 3.59-.1L12 5c4.19 0 6.8.16 7.83.44.9.25 1.48.83 1.73 1.73z"/></svg>
+                    <span>YouTube</span>
+                </button>
+
+                <button class="nav-tab" data-tab="spotify" tabindex="0" id="tabSpotify">
+                    <svg viewBox="0 0 24 24" fill="#1DB954"><path d="M12 2C6.4 2 2 6.4 2 12s4.4 10 10 10 10-4.4 10-10S17.6 2 12 2zm4.6 14.4c-.2.3-.6.4-.9.2-2.4-1.5-5.5-1.8-9.1-1-.4.1-.7-.1-.8-.5-.1-.4.1-.7.5-.8 3.9-.9 7.4-.5 10.1 1.1.3.2.4.6.2 1zm1.2-2.7c-.2.4-.7.5-1.1.3-2.7-1.7-6.9-2.2-10.1-1.2-.4.1-.9-.1-1-.5-.1-.4.1-.9.5-1 3.7-1.1 8.3-.6 11.4 1.3.4.2.5.7.3 1.1zm.1-2.8C14.7 9 8.2 8.8 4.4 10c-.5.1-1.1-.2-1.2-.7-.1-.5.2-1.1.7-1.2 4.4-1.3 11.6-1.1 15.2 1.1.5.3.6.9.3 1.4-.2.5-.8.7-1.5.3z"/></svg>
+                    <span>Spotify</span>
+                </button>
+
+                <button class="nav-tab" data-tab="streaming" tabindex="0" id="tabStreaming">
+                    <svg viewBox="0 0 24 24" fill="#E50914"><path d="M4 2v20l6-6V2H4zm10 0v14l6 6V2h-6z"/></svg>
+                    <span>Streaming</span>
+                </button>
+
+                <button class="nav-tab" data-tab="assistant" tabindex="0" id="tabAssistant">
+                    <svg viewBox="0 0 24 24" fill="#00E676"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>
+                    <span>Assistant</span>
+                </button>
+            </div>
+
+            <div class="nav-footer">
+                <div class="status-indicator">
+                    <span class="status-dot connected" id="navStatusDot"></span>
+                    <span class="status-label" id="navStatusText">Phone Linked</span>
+                </div>
+                <div class="developer-tag">Made by Soumya ❤️</div>
+            </div>
+        </nav>
+
+        <!-- Right Main Screen Content -->
+        <main class="tv-main-viewport">
+
+            <!-- Top TV Status Header -->
+            <header class="tv-top-bar">
+                <div class="header-search-bar" id="headerSearchBar">
+                    <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                    <input type="text" id="globalTvSearchInput" placeholder="Ask Assistant or search YouTube, Spotify, movies..." tabindex="0">
+                    <div class="mic-shortcut-hint" id="headerMicBtn">
+                        <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/></svg>
+                        <span>MIC</span>
+                    </div>
+                </div>
+
+                <div class="header-info-group">
+                    <div class="tv-model-chip">Samsung UA32T4410</div>
+                    <div class="tv-clock-chip" id="topTvClock">12:00 PM</div>
+                </div>
+            </header>
+
+            <!-- TAB 1: HOME HUB VIEW -->
+            <section class="tab-view active" id="viewHome">
+                <!-- Hero Assistant Banner -->
+                <div class="home-hero-card">
+                    <div class="hero-left">
+                        <span class="hero-tag">AI-POWERED TV COMPANION</span>
+                        <h2 id="homeGreeting">Welcome to your Samsung Smart Hub</h2>
+                        <p id="homeSubtext">All your apps, YouTube, Spotify, and AI voice control in one smooth interface.</p>
+
+                        <div class="hero-quick-prompts">
+                            <button class="prompt-chip" tabindex="0" onclick="TvApp.executeVoiceCommand('Play Bengali songs on YouTube')">
+                                ▶ Play Bengali songs
+                            </button>
+                            <button class="prompt-chip" tabindex="0" onclick="TvApp.executeVoiceCommand('Open Spotify chill playlist')">
+                                🎵 Open Spotify Chill
+                            </button>
+                            <button class="prompt-chip" tabindex="0" onclick="TvApp.executeVoiceCommand('Turn volume up')">
+                                🔊 Volume Up
+                            </button>
+                            <button class="prompt-chip" tabindex="0" onclick="TvApp.executeVoiceCommand('What is the weather today?')">
+                                ☀️ Weather Info
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="hero-right">
+                        <div class="sound-wave-box" id="heroWaveBox">
+                            <span class="wave-pillar"></span>
+                            <span class="wave-pillar"></span>
+                            <span class="wave-pillar"></span>
+                            <span class="wave-pillar"></span>
+                            <span class="wave-pillar"></span>
+                        </div>
+                        <span class="wave-caption">Listening for Phone Voice Commands</span>
+                    </div>
+                </div>
+
+                <!-- Featured App Tiles Grid -->
+                <h3 class="section-heading">Featured Apps & Services</h3>
+                <div class="featured-grid">
+                    <div class="feature-card yt-card" tabindex="0" onclick="TvApp.switchTab('youtube')">
+                        <div class="card-icon red-glow">
+                            <svg viewBox="0 0 24 24"><path d="M10 15l5.19-3L10 9v6m11.56-7.83c.13.47.22 1.1.28 1.9.07.8.1 1.49.1 2.09L22 12c0 2.19-.16 3.8-.44 4.83-.25.9-.83 1.48-1.73 1.73-.47.13-1.33.22-2.65.28-1.3.07-2.49.1-3.59.1L12 19c-4.19 0-6.8-.16-7.83-.44-.9-.25-1.48-.83-1.73-1.73-.13-.47-.22-1.1-.28-1.9-.07-.8-.1-1.49-.1-2.09L2 12c0-2.19.16-3.8.44-4.83.25-.9.83-1.48 1.73-1.73.47-.13 1.33-.22 2.65-.28 1.3-.07 2.49-.1 3.59-.1L12 5c4.19 0 6.8.16 7.83.44.9.25 1.48.83 1.73 1.73z"/></svg>
+                        </div>
+                        <div class="card-meta">
+                            <h4>YouTube TV</h4>
+                            <p>Embedded Player, Bengali Hits, Search</p>
+                        </div>
+                        <span class="card-action-arrow">→</span>
+                    </div>
+
+                    <div class="feature-card spotify-card" tabindex="0" onclick="TvApp.switchTab('spotify')">
+                        <div class="card-icon green-glow">
+                            <svg viewBox="0 0 24 24"><path d="M12 2C6.4 2 2 6.4 2 12s4.4 10 10 10 10-4.4 10-10S17.6 2 12 2zm4.6 14.4c-.2.3-.6.4-.9.2-2.4-1.5-5.5-1.8-9.1-1-.4.1-.7-.1-.8-.5-.1-.4.1-.7.5-.8 3.9-.9 7.4-.5 10.1 1.1.3.2.4.6.2 1zm1.2-2.7c-.2.4-.7.5-1.1.3-2.7-1.7-6.9-2.2-10.1-1.2-.4.1-.9-.1-1-.5-.1-.4.1-.9.5-1 3.7-1.1 8.3-.6 11.4 1.3.4.2.5.7.3 1.1zm.1-2.8C14.7 9 8.2 8.8 4.4 10c-.5.1-1.1-.2-1.2-.7-.1-.5.2-1.1.7-1.2 4.4-1.3 11.6-1.1 15.2 1.1.5.3.6.9.3 1.4-.2.5-.8.7-1.5.3z"/></svg>
+                        </div>
+                        <div class="card-meta">
+                            <h4>Spotify Music</h4>
+                            <p>Stream tracks, playlists, and artists</p>
+                        </div>
+                        <span class="card-action-arrow">→</span>
+                    </div>
+
+                    <div class="feature-card netflix-card" tabindex="0" onclick="TvApp.launchNativeApp('11101200001', 'Netflix')">
+                        <div class="card-icon red-dim">
+                            <svg viewBox="0 0 24 24"><path d="M4 2v20l6-6V2H4zm10 0v14l6 6V2h-6z"/></svg>
+                        </div>
+                        <div class="card-meta">
+                            <h4>Netflix</h4>
+                            <p>Instant launch on Samsung TV</p>
+                        </div>
+                        <span class="card-action-arrow">↗</span>
+                    </div>
+
+                    <div class="feature-card browser-card" tabindex="0" onclick="TvApp.launchNativeApp('org.tizen.browser', 'Web Browser')">
+                        <div class="card-icon blue-glow">
+                            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+                        </div>
+                        <div class="card-meta">
+                            <h4>Web Browser</h4>
+                            <p>Browse full internet on TV</p>
+                        </div>
+                        <span class="card-action-arrow">↗</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 2: YOUTUBE TV EXPERIENCE -->
+            <section class="tab-view" id="viewYouTube">
+                <div class="yt-hub-container">
+                    <!-- YouTube Video Player Section -->
+                    <div class="yt-player-box" id="ytPlayerContainer">
+                        <iframe id="ytIframe" 
+                                src="https://www.youtube-nocookie.com/embed/5qap5aO4i9A?enablejsapi=1&autoplay=0&rel=0&modestbranding=1" 
+                                frameborder="0" 
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                allowfullscreen></iframe>
+                        <div class="yt-overlay-info" id="ytNowPlayingMeta">
+                            <h3 id="ytCurrentTitle">Bengali Songs Hits Collection</h3>
+                            <p id="ytCurrentChannel">YouTube Music • Auto Playback Ready</p>
+                        </div>
+                    </div>
+
+                    <!-- YouTube Search & Categories -->
+                    <div class="yt-categories-bar">
+                        <button class="yt-cat-chip active" tabindex="0" onclick="TvApp.filterYouTube('bengali')">Bengali Songs</button>
+                        <button class="yt-cat-chip" tabindex="0" onclick="TvApp.filterYouTube('arijit')">Arijit Singh Hits</button>
+                        <button class="yt-cat-chip" tabindex="0" onclick="TvApp.filterYouTube('lofi')">Chill Lofi Beats</button>
+                        <button class="yt-cat-chip" tabindex="0" onclick="TvApp.filterYouTube('movies')">Trailers & Cinema</button>
+                        <button class="yt-cat-chip" tabindex="0" onclick="TvApp.filterYouTube('news')">Live News & Tech</button>
+                    </div>
+
+                    <!-- Video Grid Cards -->
+                    <div class="yt-video-grid" id="ytVideoGrid">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 3: SPOTIFY MUSIC HUB -->
+            <section class="tab-view" id="viewSpotify">
+                <div class="spotify-hub-container">
+                    <div class="spotify-player-wrapper">
+                        <iframe id="spotifyIframe"
+                                style="border-radius:16px" 
+                                src="https://open.spotify.com/embed/playlist/37i9dQZF1DX5cO1u8SY2fd?utm_source=generator&theme=0" 
+                                width="100%" 
+                                height="380" 
+                                frameBorder="0" 
+                                allowfullscreen="" 
+                                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" 
+                                loading="lazy"></iframe>
+                    </div>
+
+                    <h3 class="section-heading">Featured Spotify Playlists</h3>
+                    <div class="spotify-cards-row">
+                        <div class="music-card" tabindex="0" onclick="TvApp.loadSpotifyPlaylist('37i9dQZF1DX5cO1u8SY2fd', 'Bengali Hits')">
+                            <div class="music-art bengali-art">🎵</div>
+                            <h4>Bengali Top 50</h4>
+                            <p>Most played songs in Kolkata & Bengal</p>
+                        </div>
+
+                        <div class="music-card" tabindex="0" onclick="TvApp.loadSpotifyPlaylist('37i9dQZF1DXcBWIGoYBM5M', 'Today Top Hits')">
+                            <div class="music-art global-art">🔥</div>
+                            <h4>Today's Top Hits</h4>
+                            <p>Hottest worldwide viral music</p>
+                        </div>
+
+                        <div class="music-card" tabindex="0" onclick="TvApp.loadSpotifyPlaylist('37i9dQZF1DXdLEN7aqioXM', 'Chill Lofi')">
+                            <div class="music-art lofi-art">☕</div>
+                            <h4>Lofi Chill Beats</h4>
+                            <p>Relaxing focus and study music</p>
+                        </div>
+
+                        <div class="music-card" tabindex="0" onclick="TvApp.loadSpotifyPlaylist('37i9dQZF1DX0XUfTFmNBRM', 'Bollywood Romance')">
+                            <div class="music-art bollywood-art">💖</div>
+                            <h4>Bollywood Acoustic</h4>
+                            <p>Heartfelt romantic melodies</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 4: STREAMING (NETFLIX, PRIME, APPS) -->
+            <section class="tab-view" id="viewStreaming">
+                <h3 class="section-heading">Samsung Tizen Smart TV Streaming Apps</h3>
+                <div class="streaming-grid">
+                    <div class="stream-poster netflix" tabindex="0" onclick="TvApp.launchNativeApp('11101200001', 'Netflix')">
+                        <div class="poster-inner">
+                            <span class="stream-badge">PRE-INSTALLED</span>
+                            <h2>NETFLIX</h2>
+                            <p>Movies, TV shows & Original series</p>
+                            <button class="launch-btn">Launch on TV</button>
+                        </div>
+                    </div>
+
+                    <div class="stream-poster prime" tabindex="0" onclick="TvApp.launchNativeApp('3201512006785', 'Amazon Prime Video')">
+                        <div class="poster-inner">
+                            <span class="stream-badge">PRIME VIDEO</span>
+                            <h2>PRIME VIDEO</h2>
+                            <p>Blockbuster movies & Amazon Originals</p>
+                            <button class="launch-btn">Launch on TV</button>
+                        </div>
+                    </div>
+
+                    <div class="stream-poster youtube-native" tabindex="0" onclick="TvApp.launchNativeApp('111299001912', 'YouTube Native TV')">
+                        <div class="poster-inner">
+                            <span class="stream-badge">OFFICIAL APP</span>
+                            <h2>YOUTUBE TV</h2>
+                            <p>Launch official Samsung YouTube TV app</p>
+                            <button class="launch-btn">Launch on TV</button>
+                        </div>
+                    </div>
+
+                    <div class="stream-poster browser" tabindex="0" onclick="TvApp.launchNativeApp('org.tizen.browser', 'Samsung Internet')">
+                        <div class="poster-inner">
+                            <span class="stream-badge">WEB BROWSER</span>
+                            <h2>SAMSUNG INTERNET</h2>
+                            <p>Full web navigation & video streaming</p>
+                            <button class="launch-btn">Launch on TV</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- TAB 5: AI ASSISTANT FULL VIEW -->
+            <section class="tab-view" id="viewAssistant">
+                <div class="assistant-full-container">
+                    <div class="assistant-chat-history" id="assistantChatHistory">
+                        <div class="chat-bubble ai">
+                            <div class="chat-avatar">AI</div>
+                            <div class="chat-body">
+                                <strong>Samsung AI TV Assistant</strong>
+                                <p>Hello! I am your TV Assistant, made with love by Soumya ❤️. You can speak commands into your Galaxy M30s or use your remote to search YouTube, play Spotify, and control the TV.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="assistant-input-tray">
+                        <input type="text" id="assistantDirectInput" placeholder="Type a TV command or ask AI anything..." tabindex="0">
+                        <button class="tray-send-btn" tabindex="0" id="btnTraySend">Send</button>
+                        <button class="tray-voice-btn" tabindex="0" id="btnTrayVoice">🎙️ Voice</button>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- ASSISTANT FLOATING BOTTOM HUD (Android TV / Google Assistant Style) -->
+        <div class="assistant-hud-overlay hidden" id="assistantHudOverlay">
+            <div class="hud-content-card">
+                <div class="hud-header">
+                    <div class="hud-mic-avatar pulse-anim">
+                        <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>
+                    </div>
+                    <div class="hud-text-block">
+                        <div class="hud-query" id="hudQueryText">"Search YouTube for Bengali songs"</div>
+                        <div class="hud-response" id="hudResponseText">Searching YouTube for Bengali songs and starting playback...</div>
+                    </div>
+                    <div class="hud-action-pill" id="hudActionPill">YOUTUBE SEARCH</div>
+                </div>
+
+                <div class="hud-waveform-strip">
+                    <span class="wave-tick"></span>
+                    <span class="wave-tick"></span>
+                    <span class="wave-tick"></span>
+                    <span class="wave-tick"></span>
+                    <span class="wave-tick"></span>
+                    <span class="wave-tick"></span>
+                    <span class="wave-tick"></span>
+                    <span class="wave-tick"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- TV Volume Indicator Toast -->
+        <div class="tv-volume-toast" id="tvVolumeToast">
+            <div class="vol-icon">🔊</div>
+            <div class="vol-bar-container">
+                <div class="vol-bar-fill" id="volBarFill" style="width: 25%;"></div>
+            </div>
+            <span class="vol-text" id="volText">25%</span>
+        </div>
+    </div>
+
+    <!-- Core TV JavaScript -->
+    <script src="js/app.js"></script>
+</body>
+</html>

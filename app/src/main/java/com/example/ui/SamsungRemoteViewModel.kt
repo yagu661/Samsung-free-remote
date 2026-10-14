@@ -17,12 +17,15 @@ import com.example.data.remote.OpenRouterClient
 import com.example.data.remote.OpenRouterMessage
 import com.example.data.remote.SamsungTvController
 import com.example.data.remote.SamsungTvDiscoveryManager
+import com.example.data.remote.TvAppDeployServer
+import com.example.data.remote.TvServerState
 import com.example.data.remote.SamsungTvRestApi
 import com.example.data.remote.WakeOnLanUtil
 import com.example.data.remote.YouTubeSearchResult
 import com.example.voice.TvCommandParser
 import com.example.voice.VoiceInputManager
 import com.example.voice.VoiceState
+import java.io.File
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -87,6 +90,12 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
 
     private val _voiceStatusMessage = MutableStateFlow<String?>(null)
     val voiceStatusMessage: StateFlow<String?> = _voiceStatusMessage.asStateFlow()
+
+    // TV Deploy Server & Local Package Manager
+    val tvDeployServer = TvAppDeployServer(application)
+    val tvServerState: StateFlow<TvServerState> = tvDeployServer.state
+    private val _tvExportMessage = MutableStateFlow<String?>(null)
+    val tvExportMessage: StateFlow<String?> = _tvExportMessage.asStateFlow()
 
     // AI Assistant Chat Messages
     private val _assistantChat = MutableStateFlow<List<AssistantChatMessage>>(
@@ -286,7 +295,8 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
     }
 
     fun extractYouTubeQuery(raw: String): String {
-        val trimmed = raw.trim()
+        val clean = raw.trim().removeSuffix(".").removeSuffix("?").removeSuffix("!").trim()
+        val trimmed = clean
         val lower = trimmed.lowercase()
         val prefixes = listOf(
             "search youtube for ",
@@ -368,7 +378,7 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
                 return@launch
             }
 
-            val providerName = if (preferences.aiProvider == "gemini") "Google Gemini 3.5 Flash" else "OpenRouter (${preferences.openRouterModel})"
+            val providerName = if (preferences.aiProvider == "gemini") "Google Gemini 2.0 Flash" else "OpenRouter (${preferences.openRouterModel})"
             _voiceStatusMessage.value = "Interpreting via $providerName..."
             val aiResult = openRouterClient.sendChatCompletion(speech)
             aiResult.onSuccess { assistantResult ->
@@ -714,5 +724,33 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
         _diagnostics.value = _diagnostics.value.map { item ->
             if (item.id == id) item.copy(status = status, details = details) else item
         }
+    }
+
+    fun toggleTvServer() {
+        if (tvServerState.value.isRunning) {
+            tvDeployServer.stopServer()
+        } else {
+            tvDeployServer.startServer()
+        }
+    }
+
+    fun exportTvApp() {
+        viewModelScope.launch {
+            val result = tvDeployServer.exportWgtToDownloads()
+            result.onSuccess { file ->
+                _tvExportMessage.value = "Successfully exported to: ${file.absolutePath}"
+            }.onFailure { err ->
+                _tvExportMessage.value = "Export failed: ${err.message}"
+            }
+        }
+    }
+
+    fun clearTvExportMessage() {
+        _tvExportMessage.value = null
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        tvDeployServer.stopServer()
     }
 }

@@ -71,6 +71,7 @@ import com.example.ui.SamsungRemoteViewModel
 import com.example.ui.components.ConnectionStatusHeader
 import com.example.ui.theme.RemoteBorderColor
 import com.example.ui.theme.RemoteCardSurface
+import com.example.ui.theme.RemoteDarkSurface
 import com.example.ui.theme.RemoteElevatedSurface
 import com.example.ui.theme.RemoteEmerald
 import com.example.ui.theme.RemoteNeonGreen
@@ -96,6 +97,8 @@ fun SettingsScreen(
     val openRouterApiKey by viewModel.openRouterApiKey.collectAsState()
     val openRouterModel by viewModel.openRouterModel.collectAsState()
     val speechLanguage by viewModel.speechLanguage.collectAsState()
+    val tvServerState by viewModel.tvServerState.collectAsState()
+    val tvExportMessage by viewModel.tvExportMessage.collectAsState()
     val scrollState = rememberScrollState()
 
     var customGeminiKeyInput by remember(customGeminiApiKey) { mutableStateOf(customGeminiApiKey) }
@@ -245,7 +248,6 @@ fun SettingsScreen(
                 }
 
                 // Details based on active provider
-                // Details based on active provider
                 if (aiProvider == "gemini") {
                     Box(
                         modifier = Modifier
@@ -368,11 +370,16 @@ fun SettingsScreen(
                                         .clickable { viewModel.setOpenRouterModel(modelName) }
                                         .padding(horizontal = 8.dp, vertical = 6.dp)
                                 ) {
+                                    val displayName = if (modelName.contains(":free")) {
+                                        modelName.substringAfter("/").removeSuffix(":free") + " (FREE)"
+                                    } else {
+                                        modelName.substringAfter("/")
+                                    }
                                     Text(
-                                        text = modelName.substringAfter("/"),
-                                        color = if (isSelected) RemotePitchBlack else RemoteTextSecondary,
+                                        text = displayName,
+                                        color = if (isSelected) RemotePitchBlack else if (modelName.contains(":free")) RemoteNeonGreen else RemoteTextSecondary,
                                         fontSize = 11.sp,
-                                        fontWeight = FontWeight.Medium
+                                        fontWeight = if (modelName.contains(":free") || isSelected) FontWeight.Bold else FontWeight.Medium
                                     )
                                 }
                             }
@@ -671,7 +678,193 @@ fun SettingsScreen(
             }
         }
 
-        // --- 5. "Made with love by Soumya" Card (PROMINENT DEVELOPER BADGE) ---
+        // --- 5. Tizen TV App (.wgt) Download & Deployment Card ---
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.5.dp, RemoteNeonGreen.copy(alpha = 0.7f), RoundedCornerShape(16.dp)),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = RemoteCardSurface)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Tv,
+                        contentDescription = null,
+                        tint = RemoteNeonGreen,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "SAMSUNG SMART TV APP (.WGT) MANAGER",
+                        color = RemoteNeonGreen,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp
+                    )
+                }
+
+                Text(
+                    text = "Your system has two connected apps:\n" +
+                            "1. 📱 Android Remote APK (running on this Galaxy M30s)\n" +
+                            "2. 📺 Samsung TV App (SamsungAssistant.wgt with YouTube TV & Voice HUD)",
+                    color = RemoteTextPrimary,
+                    fontSize = 12.sp,
+                    lineHeight = 18.sp
+                )
+
+                // Sub-card 1: GitHub Automatic Release
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(RemoteElevatedSurface)
+                        .border(1.dp, RemoteBorderColor, RoundedCornerShape(12.dp))
+                        .padding(12.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = "📦 Option 1: Download from GitHub Releases",
+                            color = RemoteNeonGreen,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "When you push code to GitHub, GitHub Actions builds and publishes both Samsung-AI-Remote.apk and SamsungAssistant.wgt side-by-side under Releases > Assets. You can download the .wgt file directly from the GitHub page on any device!",
+                            color = RemoteTextSecondary,
+                            fontSize = 11.sp,
+                            lineHeight = 16.sp
+                        )
+                    }
+                }
+
+                // Sub-card 2: Built-in Phone TV Sync Server
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (tvServerState.isRunning) RemotePitchBlack else RemoteElevatedSurface)
+                        .border(
+                            1.dp,
+                            if (tvServerState.isRunning) RemoteNeonGreen else RemoteBorderColor,
+                            RoundedCornerShape(12.dp)
+                        )
+                        .padding(12.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "📡 Option 2: Direct Phone-to-TV Sync",
+                                    color = if (tvServerState.isRunning) RemoteNeonGreen else RemoteTextPrimary,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = if (tvServerState.isRunning) "Server Active: ${tvServerState.serverUrl}" else "No PC or Termux needed",
+                                    color = if (tvServerState.isRunning) RemoteEmerald else RemoteTextMuted,
+                                    fontSize = 11.sp
+                                )
+                            }
+                            Button(
+                                onClick = { viewModel.toggleTvServer() },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (tvServerState.isRunning) RemotePowerRed else RemoteNeonGreen,
+                                    contentColor = if (tvServerState.isRunning) Color.White else RemotePitchBlack
+                                ),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.testTag("btn_toggle_tv_server")
+                            ) {
+                                Text(
+                                    text = if (tvServerState.isRunning) "Stop Server" else "Start Server",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        if (tvServerState.isRunning) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(RemoteDarkSurface)
+                                    .padding(8.dp)
+                            ) {
+                                Text(
+                                    text = "Status: ${tvServerState.lastEvent} (Downloads: ${tvServerState.downloadCount})",
+                                    color = RemoteTextPrimary,
+                                    fontSize = 11.sp
+                                )
+                            }
+
+                            Text(
+                                text = "How to install on TV now:\n" +
+                                        "1. On Samsung TV: Open Apps > Press 1, 2, 3, 4, 5 on remote.\n" +
+                                        "2. Turn Developer Mode ON > Enter Host IP: ${tvServerState.serverUrl.removePrefix("http://").substringBefore(":")}\n" +
+                                        "3. Hold remote Power button for 5 sec to reboot TV.\n" +
+                                        "4. On TV: Open Apps > Options (gear icon) > 'App Sync'.\n" +
+                                        "5. The TV will automatically download and install the app from your phone!",
+                                color = RemoteTextSecondary,
+                                fontSize = 11.sp,
+                                lineHeight = 16.sp
+                            )
+                        }
+                    }
+                }
+
+                // Sub-card 3: Export .wgt to Downloads
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Button(
+                        onClick = { viewModel.exportTvApp() },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = RemoteElevatedSurface,
+                            contentColor = RemoteNeonGreen
+                        ),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("btn_export_tv_wgt")
+                    ) {
+                        Text(
+                            text = "Save SamsungAssistant.wgt to Phone Downloads",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+
+                tvExportMessage?.let { msg ->
+                    Text(
+                        text = msg,
+                        color = if (msg.contains("Successfully")) RemoteNeonGreen else RemotePowerRed,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+
+                // Sub-card 4: Termux quick command
+                Text(
+                    text = "• Termux Deploy Command: If you prefer Termux, run:\n" +
+                            "  python tizen-assistant-app/termux_sdb_deploy.py <TV_IP>",
+                    color = RemoteTextMuted,
+                    fontSize = 11.sp
+                )
+            }
+        }
+
+        // --- 6. "Made with love by Soumya" Card (PROMINENT DEVELOPER BADGE) ---
         Card(
             modifier = Modifier
                 .fillMaxWidth()

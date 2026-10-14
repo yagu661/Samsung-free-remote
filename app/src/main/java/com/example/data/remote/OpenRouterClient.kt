@@ -38,11 +38,14 @@ class OpenRouterClient(
         private const val OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
         val POPULAR_MODELS = listOf(
+            "meta-llama/llama-3.3-70b-instruct:free",
+            "google/gemini-2.0-flash-exp:free",
+            "google/gemini-2.0-flash-thinking-exp:free",
+            "qwen/qwen-2.5-72b-instruct:free",
+            "mistralai/mistral-small-24b-instruct-2501:free",
             "google/gemini-2.0-flash-001",
             "meta-llama/llama-3.3-70b-instruct",
-            "deepseek/deepseek-chat",
-            "mistralai/mistral-small-24b-instruct-2501",
-            "anthropic/claude-3.5-haiku"
+            "deepseek/deepseek-chat"
         )
     }
 

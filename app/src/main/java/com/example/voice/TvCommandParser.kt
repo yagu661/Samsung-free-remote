@@ -11,21 +11,26 @@ object TvCommandParser {
      * Deterministic, zero-latency parsing for exact or canonical voice commands.
      */
     fun parseDeterministic(rawInput: String): TvAction? {
-        val text = rawInput.trim().lowercase()
+        val cleanRaw = rawInput.trim().removeSuffix(".").removeSuffix("?").removeSuffix("!").trim()
+        val text = cleanRaw.lowercase()
 
         // Volume Commands
-        if (text == "volume up" || text == "vol up" || text == "increase volume" || text == "louder") {
+        if (text == "volume up" || text == "vol up" || text == "increase volume" || text == "louder" ||
+            text == "turn up volume" || text == "turn up the volume" || text == "turn volume up") {
             return TvAction.PressKey(RemoteKey.KEY_VOLUP)
         }
-        if (text == "volume down" || text == "vol down" || text == "decrease volume" || text == "lower volume" || text == "quieter") {
+        if (text == "volume down" || text == "vol down" || text == "decrease volume" || text == "lower volume" ||
+            text == "quieter" || text == "turn down volume" || text == "turn down the volume" || text == "turn volume down") {
             return TvAction.PressKey(RemoteKey.KEY_VOLDOWN)
         }
-        if (text == "mute" || text == "unmute" || text == "mute tv" || text == "mute the tv" || text == "silence") {
+        if (text == "mute" || text == "unmute" || text == "mute tv" || text == "mute the tv" ||
+            text == "silence" || text == "unmute tv" || text == "unmute the tv") {
             return TvAction.PressKey(RemoteKey.KEY_MUTE)
         }
 
         // Navigation Commands
-        if (text == "go home" || text == "home" || text == "open home" || text == "smart hub") {
+        if (text == "go home" || text == "home" || text == "open home" || text == "smart hub" ||
+            text == "go to home" || text == "home screen") {
             return TvAction.PressKey(RemoteKey.KEY_HOME)
         }
         if (text == "go back" || text == "back" || text == "return") {
@@ -94,6 +99,14 @@ object TvCommandParser {
             return TvAction.PressKey(RemoteKey.KEY_POWER)
         }
 
+        // Native Voice & Search
+        if (text == "voice" || text == "voice button" || text == "voice search" || text == "trigger voice" || text == "open voice" || text == "bixby" || text == "tv mic") {
+            return TvAction.PressKey(RemoteKey.KEY_VOICE)
+        }
+        if (text == "search" || text == "tv search" || text == "open search") {
+            return TvAction.PressKey(RemoteKey.KEY_SEARCH)
+        }
+
         // App Launch
         if (text == "open youtube" || text == "launch youtube" || text == "start youtube") {
             return TvAction.LaunchApp(TvApp.YOUTUBE)
@@ -115,7 +128,7 @@ object TvCommandParser {
         // "search youtube for <query>"
         // "find <query> on youtube"
         // "look up <query> on youtube"
-        val trimmedRaw = rawInput.trim()
+        val trimmedRaw = cleanRaw
         val searchPrefixes = listOf(
             "search youtube for ",
             "search youtube ",

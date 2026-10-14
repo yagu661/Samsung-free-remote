@@ -31,6 +31,8 @@ data class TvConnectionState(
 
 enum class RemoteKey(val keyName: String, val label: String, val description: String) {
     KEY_POWER("KEY_POWER", "Power", "Toggle Power (Active only when TV is On)"),
+    KEY_VOICE("KEY_VOICE", "Voice", "Samsung TV Voice Recognition / Mic"),
+    KEY_SEARCH("KEY_SEARCH", "Search", "TV Search Dialog / Interface"),
     KEY_VOLUP("KEY_VOLUP", "Vol +", "Volume Up"),
     KEY_VOLDOWN("KEY_VOLDOWN", "Vol -", "Volume Down"),
     KEY_MUTE("KEY_MUTE", "Mute", "Mute / Unmute Audio"),

@@ -470,6 +470,131 @@ fun YouTubeSearchScreen(
             }
         }
 
+        // All-In-One Smart TV AI Hub (YouTube, Spotify, Netflix & Assistant)
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.5.dp, RemoteNeonGreen.copy(alpha = 0.6f), RoundedCornerShape(16.dp)),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = RemoteCardSurface)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.PlayArrow,
+                            contentDescription = null,
+                            tint = RemoteNeonGreen,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "SMART TV AI HUB (CUSTOM APP)",
+                            color = RemoteNeonGreen,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp
+                        )
+                    }
+                    Text(
+                        text = "UA32T4410",
+                        color = RemoteTextMuted,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Text(
+                    text = "Controls your all-in-one TV app (YouTube, Spotify, Netflix & Assistant embedded in one smooth UI).",
+                    color = RemoteTextSecondary,
+                    fontSize = 12.sp
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            val q = if (queryInput.isNotBlank()) queryInput.trim() else "Bengali songs"
+                            viewModel.searchYouTubeWorkflow(q)
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = RemoteNeonGreen,
+                            contentColor = RemotePitchBlack
+                        ),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("btn_tv_hub_stream_yt")
+                    ) {
+                        Text("▶ Play on TV Hub", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    Button(
+                        onClick = {
+                            viewModel.handleVoiceRecognized("Open Spotify")
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF1DB954),
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("btn_tv_hub_spotify")
+                    ) {
+                        Text("🎵 Spotify Hub", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            viewModel.launchApp(TvApp.NETFLIX)
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFE50914),
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("btn_tv_hub_netflix")
+                    ) {
+                        Text("🍿 Netflix", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    Button(
+                        onClick = {
+                            viewModel.handleVoiceRecognized("voice")
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = RemoteElevatedSurface,
+                            contentColor = RemoteNeonGreen
+                        ),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .border(1.dp, RemoteNeonGreen.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+                            .testTag("btn_tv_hub_assistant")
+                    ) {
+                        Text("🎙️ TV Assistant", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+
         // Tizen YouTube Limitation Card & Fallback Navigation
         Card(
             modifier = Modifier

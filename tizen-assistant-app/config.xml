@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<widget xmlns="http://www.w3.org/ns/widgets" 
+        xmlns:tizen="http://tizen.org/ns/tizen" 
+        id="aistudio01.samsungassistant" 
+        version="1.0.0" 
+        viewmodes="fullscreen">
+    <tizen:application id="aistudio01.samsungassistant" 
+                       exec="index.html" 
+                       entry="index.html" 
+                       type="web" 
+                       package="aistudio01.samsungassistant" 
+                       ambient_support="disable" />
+    <name>Samsung AI TV Assistant</name>
+    <description>AI-Powered Voice Assistant and Companion for Samsung Tizen Smart TVs (UA32T4410AKXXL)</description>
+    <author href="https://github.com/soumya">Soumya</author>
+    <icon src="icon.png"/>
+    <content src="index.html"/>
+    
+    <!-- Required Tizen Web Device API Privileges -->
+    <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
+    <tizen:privilege name="http://tizen.org/privilege/application.launch"/>
+    <tizen:privilege name="http://tizen.org/privilege/tvaudiocontrol"/>
+    <tizen:privilege name="http://tizen.org/privilege/internet"/>
+    <tizen:privilege name="http://developer.samsung.com/privilege/network.public"/>
+    
+    <!-- Supported Features & Network Access -->
+    <tizen:profile name="tv"/>
+    <tizen:setting screen-orientation="landscape" context-menu="enable" background-support="disable" encryption="disable" install-location="auto"/>
+    <access origin="*" subdomains="true"/>
+    <tizen:allow-navigation>*</tizen:allow-navigation>
+</widget>

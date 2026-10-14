@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tv
@@ -152,7 +153,17 @@ fun FullRemoteScreen(
                 testTag = "btn_power"
             )
 
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                // TV Native Voice Trigger
+                RemoteIconButton(
+                    icon = Icons.Default.Mic,
+                    contentDescription = "TV Voice",
+                    onClick = { handleSendKey(RemoteKey.KEY_VOICE) },
+                    tint = RemoteNeonGreen,
+                    size = 50.dp,
+                    testTag = "btn_tv_voice"
+                )
+
                 RemoteIconButton(
                     icon = Icons.Default.Dialpad,
                     contentDescription = "Keypad",

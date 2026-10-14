@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rsp stat="ok">
+    <list>
+        <widget id="aistudio01.samsungassistant">
+            <title>Samsung AI TV Assistant</title>
+            <compression size="262144" type="zip"/>
+            <description>AI-Powered Voice Assistant and Entertainment Hub with YouTube and Spotify for Samsung Tizen Smart TV</description>
+            <download>SamsungAssistant.wgt</download>
+        </widget>
+    </list>
+</rsp>
