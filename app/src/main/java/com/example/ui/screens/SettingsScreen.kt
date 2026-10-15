@@ -180,6 +180,32 @@ fun SettingsScreen(
                     fontSize = 12.sp
                 )
 
+                // Shortcut notice to dedicated APIs tab
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(RemoteDarkSurface)
+                        .border(1.dp, RemoteNeonGreen.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                        .padding(10.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Key,
+                            contentDescription = null,
+                            tint = RemoteNeonGreen,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "💡 New: Dedicated 'APIs' tab is now available on the bottom bar to manage all 6 AI providers with ultra-resilient automatic fallback!",
+                            fontSize = 11.sp,
+                            color = RemoteTextPrimary,
+                            lineHeight = 15.sp
+                        )
+                    }
+                }
+
                 // Provider Toggle Chips
                 Text(
                     text = "Select AI Engine Provider:",
@@ -806,12 +832,17 @@ fun SettingsScreen(
                             }
 
                             Text(
-                                text = "How to install on TV now:\n" +
-                                        "1. On Samsung TV: Open Apps > Press 1, 2, 3, 4, 5 on remote.\n" +
-                                        "2. Turn Developer Mode ON > Enter Host IP: ${tvServerState.serverUrl.removePrefix("http://").substringBefore(":")}\n" +
-                                        "3. Hold remote Power button for 5 sec to reboot TV.\n" +
-                                        "4. On TV: Open Apps > Options (gear icon) > 'App Sync'.\n" +
-                                        "5. The TV will automatically download and install the app from your phone!",
+                                text = "How to trigger TV download & install:\n" +
+                                        "⚠️ Note: Entering Host IP & restarting only authorizes your phone—the TV does NOT auto-download on reboot.\n\n" +
+                                        "👉 Method A: TV Screen 'User App Sync'\n" +
+                                        "1. On TV, open 'APPS' panel (you will see 'Develop Mode' at top).\n" +
+                                        "2. Highlight ANY app (e.g. YouTube).\n" +
+                                        "3. PRESS & HOLD remote ENTER/OK button for 5 seconds.\n" +
+                                        "4. A popup menu appears -> Select 'IP Setting' -> Enter ${tvServerState.serverUrl.removePrefix("http://").substringBefore(":")}\n" +
+                                        "5. Select 'Start User App Sync' -> TV downloads & installs SamsungAssistant.wgt!\n\n" +
+                                        "👉 Method B: If TV menu lacks App Sync (Tizen 5.5 SDB)\n" +
+                                        "Run in Termux: python tizen-assistant-app/termux_sdb_deploy.py <TV_IP>\n" +
+                                        "Or use 'Apps2Samsung' sideload tool for Android.",
                                 color = RemoteTextSecondary,
                                 fontSize = 11.sp,
                                 lineHeight = 16.sp

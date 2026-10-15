@@ -26,6 +26,7 @@ import com.example.voice.TvCommandParser
 import com.example.voice.VoiceInputManager
 import com.example.voice.VoiceState
 import java.io.File
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -81,6 +82,13 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
     val speechLanguage = MutableStateFlow(preferences.speechLanguage)
     val aiSystemPrompt = MutableStateFlow(preferences.aiSystemPrompt)
 
+    val groqApiKey = MutableStateFlow(preferences.groqApiKey)
+    val cerebrasApiKey = MutableStateFlow(preferences.cerebrasApiKey)
+    val mistralApiKey = MutableStateFlow(preferences.mistralApiKey)
+    val cloudflareApiKey = MutableStateFlow(preferences.cloudflareApiKey)
+    val cloudflareAccountId = MutableStateFlow(preferences.cloudflareAccountId)
+    val enableMultiProviderFallback = MutableStateFlow(preferences.enableMultiProviderFallback)
+
     val ipAddressInput = MutableStateFlow(preferences.tvIp.ifBlank { "192.168.1." })
     val portInput = MutableStateFlow(preferences.tvPort)
 
@@ -92,7 +100,9 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
     val voiceStatusMessage: StateFlow<String?> = _voiceStatusMessage.asStateFlow()
 
     // TV Deploy Server & Local Package Manager
-    val tvDeployServer = TvAppDeployServer(application)
+    val tvDeployServer = TvAppDeployServer(application, preferences) {
+        refreshApiKeysFromPreferences()
+    }
     val tvServerState: StateFlow<TvServerState> = tvDeployServer.state
     private val _tvExportMessage = MutableStateFlow<String?>(null)
     val tvExportMessage: StateFlow<String?> = _tvExportMessage.asStateFlow()
@@ -160,6 +170,71 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
     fun setOpenRouterModel(model: String) {
         openRouterModel.value = model.trim()
         preferences.openRouterModel = model.trim()
+    }
+
+    fun setGroqApiKey(key: String) {
+        groqApiKey.value = key.trim()
+        preferences.groqApiKey = key.trim()
+    }
+
+    fun setCerebrasApiKey(key: String) {
+        cerebrasApiKey.value = key.trim()
+        preferences.cerebrasApiKey = key.trim()
+    }
+
+    fun setMistralApiKey(key: String) {
+        mistralApiKey.value = key.trim()
+        preferences.mistralApiKey = key.trim()
+    }
+
+    fun setCloudflareApiKey(key: String) {
+        cloudflareApiKey.value = key.trim()
+        preferences.cloudflareApiKey = key.trim()
+    }
+
+    fun setCloudflareAccountId(id: String) {
+        cloudflareAccountId.value = id.trim()
+        preferences.cloudflareAccountId = id.trim()
+    }
+
+    fun setEnableMultiProviderFallback(enabled: Boolean) {
+        enableMultiProviderFallback.value = enabled
+        preferences.enableMultiProviderFallback = enabled
+    }
+
+    fun testAiProvider(provider: String, onResult: (Boolean, String) -> Unit) {
+        viewModelScope.launch {
+            val result = openRouterClient.testProvider(provider)
+            if (result.isSuccess) {
+                onResult(true, result.getOrNull() ?: "Success!")
+            } else {
+                onResult(false, result.exceptionOrNull()?.message ?: "Failed to connect")
+            }
+        }
+    }
+
+    fun generateTermuxExportScript(): String {
+        val gemini = preferences.getEffectiveGeminiApiKey()
+        val groq = preferences.groqApiKey
+        val cerebras = preferences.cerebrasApiKey
+        val openrouter = preferences.openRouterApiKey
+        val mistral = preferences.mistralApiKey
+        val cfKey = preferences.cloudflareApiKey
+        val cfAcc = preferences.cloudflareAccountId
+
+        return buildString {
+            appendLine("# Paste this into Termux on your Galaxy M30s:")
+            appendLine("export GEMINI_API_KEY=\"$gemini\"")
+            appendLine("export GROQ_API_KEY=\"$groq\"")
+            appendLine("export CEREBRAS_API_KEY=\"$cerebras\"")
+            appendLine("export OPENROUTER_API_KEY=\"$openrouter\"")
+            appendLine("export MISTRAL_API_KEY=\"$mistral\"")
+            appendLine("export CLOUDFLARE_API_KEY=\"$cfKey\"")
+            appendLine("export CLOUDFLARE_ACCOUNT_ID=\"$cfAcc\"")
+            appendLine()
+            appendLine("# Run the ultra-resilient Python fallback engine:")
+            appendLine("python3 llm_fallback_system.py \"Search YouTube for Bengali songs\"")
+        }
     }
 
     fun setSpeechLanguage(lang: String) {
@@ -745,8 +820,18 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
         }
     }
 
-    fun clearTvExportMessage() {
-        _tvExportMessage.value = null
+    fun refreshApiKeysFromPreferences() {
+        viewModelScope.launch(Dispatchers.Main) {
+            customGeminiApiKey.value = preferences.customGeminiApiKey
+            groqApiKey.value = preferences.groqApiKey
+            cerebrasApiKey.value = preferences.cerebrasApiKey
+            mistralApiKey.value = preferences.mistralApiKey
+            cloudflareApiKey.value = preferences.cloudflareApiKey
+            cloudflareAccountId.value = preferences.cloudflareAccountId
+            openRouterApiKey.value = preferences.openRouterApiKey
+            openRouterModel.value = preferences.openRouterModel
+            enableMultiProviderFallback.value = preferences.enableMultiProviderFallback
+        }
     }
 
     override fun onCleared() {

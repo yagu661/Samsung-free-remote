@@ -61,6 +61,30 @@ class TvPreferences(context: Context) {
         get() = prefs.getString("pref_openrouter_model", "google/gemini-2.0-flash-001") ?: "google/gemini-2.0-flash-001"
         set(value) = prefs.edit().putString("pref_openrouter_model", value.trim()).apply()
 
+    var groqApiKey: String
+        get() = prefs.getString("pref_groq_api_key", "") ?: ""
+        set(value) = prefs.edit().putString("pref_groq_api_key", value.trim()).apply()
+
+    var cerebrasApiKey: String
+        get() = prefs.getString("pref_cerebras_api_key", "") ?: ""
+        set(value) = prefs.edit().putString("pref_cerebras_api_key", value.trim()).apply()
+
+    var mistralApiKey: String
+        get() = prefs.getString("pref_mistral_api_key", "") ?: ""
+        set(value) = prefs.edit().putString("pref_mistral_api_key", value.trim()).apply()
+
+    var cloudflareApiKey: String
+        get() = prefs.getString("pref_cloudflare_api_key", "") ?: ""
+        set(value) = prefs.edit().putString("pref_cloudflare_api_key", value.trim()).apply()
+
+    var cloudflareAccountId: String
+        get() = prefs.getString("pref_cloudflare_account_id", "") ?: ""
+        set(value) = prefs.edit().putString("pref_cloudflare_account_id", value.trim()).apply()
+
+    var enableMultiProviderFallback: Boolean
+        get() = prefs.getBoolean("pref_enable_multi_provider_fallback", true)
+        set(value) = prefs.edit().putBoolean("pref_enable_multi_provider_fallback", value).apply()
+
     var speechLanguage: String
         get() = prefs.getString("pref_speech_language", "en-US") ?: "en-US"
         set(value) = prefs.edit().putString("pref_speech_language", value.trim()).apply()
