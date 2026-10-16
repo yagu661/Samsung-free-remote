@@ -3,6 +3,7 @@ package com.example.ui.screens
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -77,6 +78,8 @@ import kotlinx.coroutines.launch
 fun FullRemoteScreen(
     viewModel: SamsungRemoteViewModel,
     onNavigateToConnection: () -> Unit,
+    onNavigateToSettings: () -> Unit = {},
+    onNavigateToVoice: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val connectionState by viewModel.connectionState.collectAsState()
@@ -88,108 +91,127 @@ fun FullRemoteScreen(
     fun handleSendKey(key: RemoteKey) {
         val err = viewModel.sendKey(key)
         if (err != null) {
-            lastErrorToast = err
+            lastErrorToast = "$err — Tap to connect TV"
         }
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .background(RemotePitchBlack)
-            .padding(horizontal = 20.dp)
-            .verticalScroll(scrollState),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Spacer(modifier = Modifier.height(4.dp))
-
-        // Top Connection Status Header
-        ConnectionStatusHeader(
-            connectionState = connectionState,
-            onReconnectClick = onNavigateToConnection
-        )
-
-        Text(
-            text = "Made with love by Soumya ❤️",
-            color = Color(0xFFFF80AB),
-            fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold
-        )
-
-        // Error message banner if any
-        AnimatedVisibility(visible = lastErrorToast != null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(RemoteWarning.copy(alpha = 0.15f))
-                    .border(1.dp, RemoteWarning.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
-                    .padding(10.dp)
-            ) {
-                Text(
-                    text = lastErrorToast ?: "",
-                    color = RemoteWarning,
-                    fontSize = 12.sp
-                )
-            }
-        }
-
-        // Top Control Row: Power, Info, Source, Settings
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+    Box(modifier = modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(RemotePitchBlack)
+                .padding(horizontal = 20.dp)
+                .verticalScroll(scrollState),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Power Button (Standby Aware)
-            RemoteIconButton(
-                icon = Icons.Default.PowerSettingsNew,
-                contentDescription = "Power",
-                onClick = { handleSendKey(RemoteKey.KEY_POWER) },
-                tint = RemotePowerRed,
-                backgroundColor = RemoteElevatedSurface,
-                borderColor = RemotePowerRed.copy(alpha = 0.4f),
-                size = 56.dp,
-                shape = CircleShape,
-                testTag = "btn_power"
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // Top Connection Status Header
+            ConnectionStatusHeader(
+                connectionState = connectionState,
+                onReconnectClick = onNavigateToConnection
             )
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                // TV Native Voice Trigger
-                RemoteIconButton(
-                    icon = Icons.Default.Mic,
-                    contentDescription = "TV Voice",
-                    onClick = { handleSendKey(RemoteKey.KEY_VOICE) },
-                    tint = RemoteNeonGreen,
-                    size = 50.dp,
-                    testTag = "btn_tv_voice"
-                )
+            Text(
+                text = "Made with love by Soumya ❤️",
+                color = Color(0xFFFF80AB),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold
+            )
 
-                RemoteIconButton(
-                    icon = Icons.Default.Dialpad,
-                    contentDescription = "Keypad",
-                    onClick = { showNumpad = !showNumpad },
-                    tint = if (showNumpad) RemoteNeonGreen else RemoteTextSecondary,
-                    size = 50.dp,
-                    testTag = "btn_keypad_toggle"
-                )
-
-                RemoteIconButton(
-                    icon = Icons.Default.Tv,
-                    contentDescription = "Source",
-                    onClick = { handleSendKey(RemoteKey.KEY_SOURCE) },
-                    size = 50.dp,
-                    testTag = "btn_source"
-                )
-
-                RemoteIconButton(
-                    icon = Icons.Default.Settings,
-                    contentDescription = "Settings",
-                    onClick = { handleSendKey(RemoteKey.KEY_SETTINGS) },
-                    size = 50.dp,
-                    testTag = "btn_settings"
-                )
+            // Error message banner if any
+            AnimatedVisibility(visible = lastErrorToast != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(RemoteWarning.copy(alpha = 0.15f))
+                        .border(1.dp, RemoteWarning.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+                        .clickable { onNavigateToConnection() }
+                        .padding(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = lastErrorToast ?: "",
+                            color = RemoteWarning,
+                            fontSize = 12.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Dismiss",
+                            tint = RemoteTextMuted,
+                            modifier = Modifier
+                                .size(16.dp)
+                                .clickable { lastErrorToast = null }
+                        )
+                    }
+                }
             }
-        }
+
+            // Top Control Row: Power, Mic, Keypad, Source, Settings
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Power Button (Standby Aware)
+                RemoteIconButton(
+                    icon = Icons.Default.PowerSettingsNew,
+                    contentDescription = "Power",
+                    onClick = { handleSendKey(RemoteKey.KEY_POWER) },
+                    tint = RemotePowerRed,
+                    backgroundColor = RemoteElevatedSurface,
+                    borderColor = RemotePowerRed.copy(alpha = 0.4f),
+                    size = 56.dp,
+                    shape = CircleShape,
+                    testTag = "btn_power"
+                )
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // TV Native Voice Trigger -> switches to Voice Screen for speech input
+                    RemoteIconButton(
+                        icon = Icons.Default.Mic,
+                        contentDescription = "Voice Control",
+                        onClick = onNavigateToVoice,
+                        tint = RemoteNeonGreen,
+                        size = 50.dp,
+                        testTag = "btn_tv_voice"
+                    )
+
+                    RemoteIconButton(
+                        icon = Icons.Default.Dialpad,
+                        contentDescription = "Keypad",
+                        onClick = { showNumpad = !showNumpad },
+                        tint = if (showNumpad) RemoteNeonGreen else RemoteTextSecondary,
+                        size = 50.dp,
+                        testTag = "btn_keypad_toggle"
+                    )
+
+                    RemoteIconButton(
+                        icon = Icons.Default.Tv,
+                        contentDescription = "Source",
+                        onClick = { handleSendKey(RemoteKey.KEY_SOURCE) },
+                        size = 50.dp,
+                        testTag = "btn_source"
+                    )
+
+                    // App Settings Screen Trigger
+                    RemoteIconButton(
+                        icon = Icons.Default.Settings,
+                        contentDescription = "Settings",
+                        onClick = onNavigateToSettings,
+                        tint = RemoteNeonGreen,
+                        size = 50.dp,
+                        testTag = "btn_settings"
+                    )
+                }
+            }
 
         // Number Pad Expandable
         AnimatedVisibility(visible = showNumpad) {
@@ -333,4 +355,5 @@ fun FullRemoteScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
     }
+}
 }

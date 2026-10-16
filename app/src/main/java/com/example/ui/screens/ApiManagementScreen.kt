@@ -192,23 +192,24 @@ fun ApiManagementScreen(
         Toast.makeText(context, successMessage, Toast.LENGTH_SHORT).show()
     }
 
+    val scrollState = rememberScrollState()
+
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(RemotePitchBlack)
+            .padding(horizontal = 16.dp)
+            .verticalScroll(scrollState),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        Spacer(modifier = Modifier.height(4.dp))
+
         ConnectionStatusHeader(
             connectionState = connectionState,
             onReconnectClick = onNavigateToConnection
         )
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp)
-        ) {
-            // Header Hero Banner
+        // Header Hero Banner
             Card(
                 colors = CardDefaults.cardColors(containerColor = RemoteCardSurface),
                 shape = RoundedCornerShape(16.dp),
@@ -973,7 +974,6 @@ fun ApiManagementScreen(
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
-}
 
 @Composable
 private fun ProviderCard(

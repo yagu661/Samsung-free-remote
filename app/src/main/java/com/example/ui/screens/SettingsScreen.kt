@@ -23,6 +23,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BatteryChargingFull
@@ -87,6 +88,8 @@ import com.example.ui.theme.RemoteWarning
 fun SettingsScreen(
     viewModel: SamsungRemoteViewModel,
     onNavigateToConnection: () -> Unit,
+    onNavigateToApis: () -> Unit = {},
+    onBackClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val connectionState by viewModel.connectionState.collectAsState()
@@ -114,7 +117,38 @@ fun SettingsScreen(
             .verticalScroll(scrollState),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // Back to Remote Navigation Button
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { onBackClick() }
+                    .background(RemoteElevatedSurface)
+                    .border(1.dp, RemoteBorderColor, RoundedCornerShape(8.dp))
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                    .testTag("btn_settings_back")
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back to Remote",
+                    tint = RemoteNeonGreen,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Back to Remote",
+                    color = RemoteNeonGreen,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
 
         ConnectionStatusHeader(
             connectionState = connectionState,
@@ -180,28 +214,46 @@ fun SettingsScreen(
                     fontSize = 12.sp
                 )
 
-                // Shortcut notice to dedicated APIs tab
+                // Shortcut notice to dedicated APIs tab (Interactive)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(10.dp))
                         .background(RemoteDarkSurface)
                         .border(1.dp, RemoteNeonGreen.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
-                        .padding(10.dp)
+                        .clickable { onNavigateToApis() }
+                        .padding(12.dp)
+                        .testTag("btn_settings_goto_apis")
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Key,
-                            contentDescription = null,
-                            tint = RemoteNeonGreen,
-                            modifier = Modifier.size(18.dp)
-                        )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Key,
+                                contentDescription = null,
+                                tint = RemoteNeonGreen,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "💡 Dedicated 'APIs' tab is available to manage all 6 AI providers with ultra-resilient fallback!",
+                                fontSize = 11.sp,
+                                color = RemoteTextPrimary,
+                                lineHeight = 15.sp
+                            )
+                        }
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "💡 New: Dedicated 'APIs' tab is now available on the bottom bar to manage all 6 AI providers with ultra-resilient automatic fallback!",
-                            fontSize = 11.sp,
-                            color = RemoteTextPrimary,
-                            lineHeight = 15.sp
+                            text = "Open →",
+                            color = RemoteNeonGreen,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }

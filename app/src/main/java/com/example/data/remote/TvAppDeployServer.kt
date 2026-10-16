@@ -199,7 +199,7 @@ class TvAppDeployServer(
 
                 when {
                     // API Keys JSON Endpoint
-                    cleanPath == "/api/keys" || cleanPath == "/api/config" || cleanPath == "/apis" && method == "GET" -> {
+                    (cleanPath == "/api/keys" || cleanPath == "/api/config" || cleanPath == "/apis") && method == "GET" -> {
                         serveApiKeysJson(output)
                         _state.value = _state.value.copy(
                             apiSyncCount = _state.value.apiSyncCount + 1,
