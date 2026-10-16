@@ -296,33 +296,259 @@
         showAssistantHud(spokenText, "AI ASSISTANT", "Processing via OpenRouter AI for your Samsung Smart TV...");
     }
 
-    // Remote Control Keys (D-Pad navigation)
+    // Remote Activity Toast / Feedback Badge
+    var tvRemoteBadge = document.getElementById('tvRemoteBadge');
+    var badgeTimer = null;
+    function showRemoteBadge(text) {
+        if (!tvRemoteBadge) return;
+        tvRemoteBadge.textContent = text;
+        tvRemoteBadge.classList.add('visible');
+        if (badgeTimer) clearTimeout(badgeTimer);
+        badgeTimer = setTimeout(function () {
+            tvRemoteBadge.classList.remove('visible');
+        }, 1200);
+    }
+
+    // Register Tizen TV hardware keys
+    function registerTizenKeys() {
+        if (typeof tizen !== 'undefined' && tizen.tvinputdevice) {
+            var keys = [
+                'VolumeUp', 'VolumeDown', 'VolumeMute',
+                'MediaPlay', 'MediaPause', 'MediaStop', 'MediaFastForward', 'MediaRewind',
+                'ColorF0Red', 'ColorF1Green', 'ColorF2Yellow', 'ColorF3Blue',
+                'ChannelUp', 'ChannelDown', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'
+            ];
+            keys.forEach(function (k) {
+                try {
+                    tizen.tvinputdevice.registerKey(k);
+                } catch (e) {
+                    console.warn("Key register skipped:", k);
+                }
+            });
+        }
+    }
+
+    // 2D Spatial Navigation Engine for Samsung TV D-Pad (Up, Down, Left, Right)
+    function getFocusableElements() {
+        var selectors = [
+            '.nav-tab',
+            '#globalTvSearchInput',
+            '#headerMicBtn',
+            '.tab-view.active .prompt-chip',
+            '.tab-view.active .feature-card',
+            '.tab-view.active .yt-cat-chip',
+            '.tab-view.active .video-card',
+            '.tab-view.active .music-card',
+            '.tab-view.active .stream-poster',
+            '.tab-view.active .assistant-input-tray input',
+            '.tab-view.active .assistant-input-tray button'
+        ];
+        var list = [];
+        selectors.forEach(function (sel) {
+            var els = document.querySelectorAll(sel);
+            for (var i = 0; i < els.length; i++) {
+                var el = els[i];
+                if (el.offsetParent !== null && !el.disabled) {
+                    list.push(el);
+                }
+            }
+        });
+        return list;
+    }
+
+    function moveFocus(dir) {
+        var elements = getFocusableElements();
+        if (!elements || elements.length === 0) return;
+
+        var current = document.activeElement;
+        if (!current || elements.indexOf(current) === -1) {
+            var activeTab = document.querySelector('.nav-tab.active') || elements[0];
+            activeTab.focus();
+            return;
+        }
+
+        var curRect = current.getBoundingClientRect();
+        var curCenterX = curRect.left + curRect.width / 2;
+        var curCenterY = curRect.top + curRect.height / 2;
+
+        var bestMatch = null;
+        var bestScore = Infinity;
+
+        elements.forEach(function (el) {
+            if (el === current) return;
+            var r = el.getBoundingClientRect();
+            var cx = r.left + r.width / 2;
+            var cy = r.top + r.height / 2;
+
+            var dx = cx - curCenterX;
+            var dy = cy - curCenterY;
+
+            var isCandidate = false;
+            var primaryDist = 0;
+            var secondaryDist = 0;
+
+            if (dir === 'up') {
+                if (dy < -10) {
+                    isCandidate = true;
+                    primaryDist = Math.abs(dy);
+                    secondaryDist = Math.abs(dx);
+                }
+            } else if (dir === 'down') {
+                if (dy > 10) {
+                    isCandidate = true;
+                    primaryDist = Math.abs(dy);
+                    secondaryDist = Math.abs(dx);
+                }
+            } else if (dir === 'left') {
+                if (dx < -10) {
+                    isCandidate = true;
+                    primaryDist = Math.abs(dx);
+                    secondaryDist = Math.abs(dy);
+                }
+            } else if (dir === 'right') {
+                if (dx > 10) {
+                    isCandidate = true;
+                    primaryDist = Math.abs(dx);
+                    secondaryDist = Math.abs(dy);
+                }
+            }
+
+            if (isCandidate) {
+                var score = primaryDist + secondaryDist * 2.2;
+                if (score < bestScore) {
+                    bestScore = score;
+                    bestMatch = el;
+                }
+            }
+        });
+
+        if (bestMatch) {
+            bestMatch.focus();
+            if (typeof bestMatch.scrollIntoView === 'function') {
+                bestMatch.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }
+    }
+
+    // Media pause helper
+    function pauseAllMedia() {
+        try {
+            if (ytIframe && ytIframe.contentWindow) {
+                ytIframe.contentWindow.postMessage('{"event":"command","func":"pauseVideo","args":""}', '*');
+            }
+        } catch (_) {}
+    }
+
+    // Media play helper
+    function playCurrentMedia() {
+        try {
+            if (ytIframe && ytIframe.contentWindow) {
+                ytIframe.contentWindow.postMessage('{"event":"command","func":"playVideo","args":""}', '*');
+            }
+        } catch (_) {}
+    }
+
+    // Remote Control Keys (D-Pad navigation & Media Keys)
     document.addEventListener('keydown', function (e) {
         var keyCode = e.keyCode;
-        console.log("TV KeyCode:", keyCode);
+        console.log("TV KeyCode pressed:", keyCode);
 
         switch (keyCode) {
+            case 38: // Arrow Up
+                showRemoteBadge("▲ UP");
+                moveFocus('up');
+                e.preventDefault();
+                break;
+            case 40: // Arrow Down
+                showRemoteBadge("▼ DOWN");
+                moveFocus('down');
+                e.preventDefault();
+                break;
+            case 37: // Arrow Left
+                showRemoteBadge("◄ LEFT");
+                moveFocus('left');
+                e.preventDefault();
+                break;
+            case 39: // Arrow Right
+                showRemoteBadge("► RIGHT");
+                moveFocus('right');
+                e.preventDefault();
+                break;
+            case 13: // Enter / OK / Select
+                showRemoteBadge("✔ SELECT");
+                if (document.activeElement) {
+                    if (document.activeElement.tagName === 'INPUT') {
+                        // Enter in input handled by input keydown
+                    } else {
+                        document.activeElement.click();
+                        e.preventDefault();
+                    }
+                }
+                break;
             case 10009: // Tizen Return (Back)
+            case 27:    // ESC
+                showRemoteBadge("⮌ BACK");
                 if (!assistantHudOverlay.classList.contains('hidden')) {
                     hideAssistantHud();
                 } else if (currentActiveTab !== 'home') {
                     switchTab('home');
+                    var homeTab = document.getElementById('tabHome');
+                    if (homeTab) homeTab.focus();
                 } else {
                     try { tizen.application.getCurrentApplication().exit(); } catch (ex) {}
                 }
+                e.preventDefault();
                 break;
             case 447: // Volume Up
-                adjustVolume(1);
+                showRemoteBadge("VOL +");
+                adjustVolume(2);
                 break;
             case 448: // Volume Down
-                adjustVolume(-1);
+                showRemoteBadge("VOL -");
+                adjustVolume(-2);
                 break;
             case 449: // Volume Mute
+                showRemoteBadge("MUTE");
                 toggleMute();
                 break;
             case 19: // Pause
+                showRemoteBadge("PAUSE");
+                pauseAllMedia();
+                break;
             case 415: // Play
-                // Toggle iframe play state if supported
+                showRemoteBadge("PLAY");
+                playCurrentMedia();
+                break;
+            case 403: // Red key -> Home
+                showRemoteBadge("🔴 HOME");
+                switchTab('home');
+                break;
+            case 404: // Green key -> YouTube
+                showRemoteBadge("🟢 YOUTUBE");
+                switchTab('youtube');
+                break;
+            case 405: // Yellow key -> Spotify
+                showRemoteBadge("🟡 SPOTIFY");
+                switchTab('spotify');
+                break;
+            case 406: // Blue key -> Assistant
+                showRemoteBadge("🔵 ASSISTANT");
+                switchTab('assistant');
+                break;
+            case 49: // '1' -> Home
+                switchTab('home');
+                break;
+            case 50: // '2' -> YouTube
+                switchTab('youtube');
+                break;
+            case 51: // '3' -> Spotify
+                switchTab('spotify');
+                break;
+            case 52: // '4' -> Streaming
+                switchTab('streaming');
+                break;
+            case 53: // '5' -> Assistant
+                switchTab('assistant');
                 break;
             default:
                 break;
@@ -342,6 +568,7 @@
             executeVoiceCommand(this.value.trim());
             this.value = '';
             this.blur();
+            moveFocus('down');
         }
     });
 
@@ -356,6 +583,7 @@
         if (e.keyCode === 13 && this.value.trim()) {
             executeVoiceCommand(this.value.trim());
             this.value = '';
+            moveFocus('up');
         }
     });
     btnTrayVoice.addEventListener('click', function () {
@@ -376,11 +604,23 @@
         executeVoiceCommand: executeVoiceCommand,
         showAssistant: showAssistantHud,
         adjustVolume: adjustVolume,
-        toggleMute: toggleMute
+        toggleMute: toggleMute,
+        moveFocus: moveFocus
     };
 
-    // Initialize Default View
+    // Initialize Default View & Register TV Remote Keys
+    registerTizenKeys();
     switchTab('home');
     filterYouTube('bengali');
-    console.log("Samsung Smart TV AI Hub loaded successfully with YouTube, Spotify, and Assistant.");
+
+    // Auto-focus default tab on app open so TV remote is active immediately
+    setTimeout(function () {
+        var tabHome = document.getElementById('tabHome');
+        if (tabHome) {
+            tabHome.focus();
+        }
+    }, 150);
+
+    console.log("Samsung Smart TV AI Hub loaded with complete 2D D-Pad Spatial Navigation.");
 })();
+

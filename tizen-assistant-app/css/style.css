@@ -1006,3 +1006,45 @@ body {
     font-weight: 800;
     color: var(--primary-neon);
 }
+
+/* Remote Key Visual Feedback Badge */
+.tv-remote-badge {
+    position: fixed;
+    top: 24px;
+    right: 28px;
+    background: rgba(10, 14, 23, 0.92);
+    border: 2px solid var(--primary-neon);
+    color: var(--primary-neon);
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    padding: 8px 18px;
+    border-radius: 24px;
+    z-index: 9999;
+    opacity: 0;
+    transform: translateY(-8px);
+    transition: all 0.18s ease;
+    pointer-events: none;
+    box-shadow: 0 0 24px rgba(0, 230, 118, 0.6);
+}
+
+.tv-remote-badge.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* High-Visibility Neon Focus Outline for TV Screens */
+button:focus, 
+.nav-tab:focus, 
+.prompt-chip:focus, 
+.feature-card:focus, 
+.yt-cat-chip:focus, 
+.video-card:focus, 
+.music-card:focus, 
+.stream-poster:focus,
+input:focus {
+    outline: 3px solid #00E676 !important;
+    outline-offset: 3px !important;
+    box-shadow: 0 0 25px rgba(0, 230, 118, 0.85) !important;
+}
+
