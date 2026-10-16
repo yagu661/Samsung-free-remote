@@ -26,6 +26,19 @@ import com.example.voice.TvCommandParser
 import com.example.voice.VoiceInputManager
 import com.example.voice.VoiceState
 import java.io.File
+import java.io.InputStream
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import android.content.Context
+import android.net.Uri
+import android.os.Environment
+import com.example.data.model.TizenDiagnosticsResult
+import com.example.data.model.TizenInstallState
+import com.example.data.model.TizenInstalledApp
+import com.example.data.model.TizenPackageInfo
+import com.example.data.remote.TizenPackageValidator
+import com.example.data.remote.TizenSdbClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -831,6 +844,266 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
             openRouterApiKey.value = preferences.openRouterApiKey
             openRouterModel.value = preferences.openRouterModel
             enableMultiProviderFallback.value = preferences.enableMultiProviderFallback
+        }
+    }
+
+    // --- Tizen SDB Installer & Package Manager Engine ---
+    val tizenSdbClient = TizenSdbClient()
+
+    private val _selectedWgtUri = MutableStateFlow<Uri?>(null)
+    val selectedWgtUri: StateFlow<Uri?> = _selectedWgtUri.asStateFlow()
+
+    private val _tizenPackageInfo = MutableStateFlow<TizenPackageInfo?>(null)
+    val tizenPackageInfo: StateFlow<TizenPackageInfo?> = _tizenPackageInfo.asStateFlow()
+
+    private val _tizenInstallState = MutableStateFlow<TizenInstallState>(TizenInstallState.Idle)
+    val tizenInstallState: StateFlow<TizenInstallState> = _tizenInstallState.asStateFlow()
+
+    private val _tizenLogs = MutableStateFlow<List<String>>(listOf("[*] Tizen SDB Engine ready on Android."))
+    val tizenLogs: StateFlow<List<String>> = _tizenLogs.asStateFlow()
+
+    private val _installedTizenApps = MutableStateFlow<List<TizenInstalledApp>>(emptyList())
+    val installedTizenApps: StateFlow<List<TizenInstalledApp>> = _installedTizenApps.asStateFlow()
+
+    val isTizenAppsLoading = MutableStateFlow(false)
+
+    private val _tizenDiagnostics = MutableStateFlow<TizenDiagnosticsResult?>(null)
+    val tizenDiagnostics: StateFlow<TizenDiagnosticsResult?> = _tizenDiagnostics.asStateFlow()
+    val isRunningTizenDiagnostics = MutableStateFlow(false)
+
+    fun appendTizenLog(msg: String) {
+        val timestamp = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+        _tizenLogs.value = _tizenLogs.value + "[$timestamp] $msg"
+    }
+
+    fun clearTizenLogs() {
+        _tizenLogs.value = listOf("[*] Logs cleared.")
+    }
+
+    fun selectWgtUri(uri: Uri, context: Context) {
+        _selectedWgtUri.value = uri
+        viewModelScope.launch(Dispatchers.IO) {
+            _tizenInstallState.value = TizenInstallState.Validating("Inspecting .wgt package structure...")
+            appendTizenLog("[*] Inspecting selected package: $uri")
+            val res = TizenPackageValidator.inspectWgt(context, uri)
+            if (res.isSuccess) {
+                val info = res.getOrNull()
+                _tizenPackageInfo.value = info
+                _tizenInstallState.value = TizenInstallState.Idle
+                appendTizenLog("[✓] Valid package: ${info?.name} (ID: ${info?.packageId}, v${info?.version})")
+            } else {
+                val err = res.exceptionOrNull()?.message ?: "Invalid package"
+                _tizenPackageInfo.value = null
+                _tizenInstallState.value = TizenInstallState.Failed(
+                    title = "Invalid Package",
+                    errorMessage = err,
+                    actionableGuide = "Please ensure you selected a valid Tizen .wgt file containing config.xml."
+                )
+                appendTizenLog("[ERROR] Package validation failed: $err")
+            }
+        }
+    }
+
+    fun loadDefaultBuiltInWgt(context: Context) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _tizenInstallState.value = TizenInstallState.Validating("Loading built-in SamsungAssistant.wgt...")
+            val downloadFile = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "SamsungAssistant.wgt")
+            val targetFile = if (downloadFile.exists()) downloadFile else File(context.filesDir, "SamsungAssistant.wgt")
+
+            if (!targetFile.exists()) {
+                val exported = tvDeployServer.exportWgtToDownloads().getOrNull()
+                if (exported != null) {
+                    val res = TizenPackageValidator.inspectWgtFile(exported)
+                    if (res.isSuccess) {
+                        _selectedWgtUri.value = Uri.fromFile(exported)
+                        _tizenPackageInfo.value = res.getOrNull()
+                        _tizenInstallState.value = TizenInstallState.Idle
+                        appendTizenLog("[✓] Loaded built-in SamsungAssistant.wgt from Downloads")
+                        return@launch
+                    }
+                }
+            } else {
+                val res = TizenPackageValidator.inspectWgtFile(targetFile)
+                if (res.isSuccess) {
+                    _selectedWgtUri.value = Uri.fromFile(targetFile)
+                    _tizenPackageInfo.value = res.getOrNull()
+                    _tizenInstallState.value = TizenInstallState.Idle
+                    appendTizenLog("[✓] Loaded SamsungAssistant.wgt (${targetFile.length()} bytes)")
+                    return@launch
+                }
+            }
+            _tizenInstallState.value = TizenInstallState.Idle
+        }
+    }
+
+    fun startTizenInstallation(context: Context) {
+        val tvIp = preferences.tvIp.trim()
+        if (tvIp.isBlank() || tvIp == "192.168.1.") {
+            _tizenInstallState.value = TizenInstallState.Failed(
+                title = "TV IP Required",
+                errorMessage = "TV IP address is not configured.",
+                actionableGuide = "Go to the Connect tab and enter your Samsung TV's IP address (e.g. 192.168.1.105)."
+            )
+            return
+        }
+
+        val uri = _selectedWgtUri.value
+        val pkgInfo = _tizenPackageInfo.value
+        if (uri == null && pkgInfo == null) {
+            _tizenInstallState.value = TizenInstallState.Failed(
+                title = "No Package Selected",
+                errorMessage = "Please choose a .wgt file first.",
+                actionableGuide = "Tap 'Select .WGT File' or 'Use Built-in SamsungAssistant.wgt'."
+            )
+            return
+        }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            _tizenInstallState.value = TizenInstallState.Connecting(tvIp)
+            appendTizenLog("=== STARTING TIZEN SDB WIRELESS INSTALLATION ===")
+            appendTizenLog("[*] Target TV: $tvIp:26101")
+            appendTizenLog("[*] Package: ${pkgInfo?.name ?: "app"} (ID: ${pkgInfo?.packageId})")
+
+            val inputStream: InputStream? = if (uri != null && uri.scheme == "file") {
+                File(uri.path ?: "").inputStream()
+            } else if (uri != null) {
+                context.contentResolver.openInputStream(uri)
+            } else {
+                val downloadFile = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "SamsungAssistant.wgt")
+                if (downloadFile.exists()) downloadFile.inputStream() else null
+            }
+
+            if (inputStream == null) {
+                _tizenInstallState.value = TizenInstallState.Failed(
+                    title = "Read Error",
+                    errorMessage = "Cannot read .wgt file content.",
+                    actionableGuide = "Try selecting the file again using the file picker."
+                )
+                return@launch
+            }
+
+            val totalBytes = pkgInfo?.sizeBytes ?: 0L
+
+            val result = tizenSdbClient.installPackage(
+                tvIp = tvIp,
+                wgtInputStream = inputStream,
+                totalBytes = totalBytes,
+                onProgress = { percent, status ->
+                    if (percent < 80) {
+                        _tizenInstallState.value = TizenInstallState.Pushing(
+                            bytesSent = (totalBytes * percent / 100),
+                            totalBytes = totalBytes,
+                            progressPercent = percent
+                        )
+                    } else {
+                        _tizenInstallState.value = TizenInstallState.ExecutingInstall(
+                            progressPercent = percent,
+                            statusText = status
+                        )
+                    }
+                },
+                onLog = { logMsg ->
+                    appendTizenLog(logMsg)
+                }
+            )
+
+            if (result.isSuccess) {
+                _tizenInstallState.value = TizenInstallState.Success(
+                    packageId = pkgInfo?.packageId ?: "installed",
+                    message = "Successfully installed ${pkgInfo?.name ?: "app"} on your Samsung Smart TV!"
+                )
+                appendTizenLog("=== INSTALLATION SUCCESSFUL ===")
+                loadInstalledTizenApps()
+            } else {
+                val err = result.exceptionOrNull()?.message ?: "Installation failed"
+                val actionable = when {
+                    err.contains("refused", ignoreCase = true) || err.contains("closed", ignoreCase = true) || err.contains("timeout", ignoreCase = true) ->
+                        "TV Developer Mode is OFF or Host IP is incorrect.\n1. On TV, open Apps > Press 1-2-3-4-5\n2. Turn Developer Mode ON -> Set Host IP to your phone's IP: ${tvDeployServer.getLocalIpAddress()}\n3. Cold reboot TV by holding remote Power button for 5 seconds."
+                    err.contains("certificate", ignoreCase = true) || err.contains("signature", ignoreCase = true) ->
+                        "Package signature rejected by TV.\nCheck that your package author-signature is valid, or install a debug-signed build."
+                    else -> "Check the terminal logs below for full error output from the TV."
+                }
+                _tizenInstallState.value = TizenInstallState.Failed(
+                    title = "Installation Failed",
+                    errorMessage = err,
+                    actionableGuide = actionable
+                )
+                appendTizenLog("=== INSTALLATION FAILED ===")
+            }
+        }
+    }
+
+    fun loadInstalledTizenApps() {
+        val tvIp = preferences.tvIp.trim()
+        if (tvIp.isBlank() || tvIp == "192.168.1.") return
+
+        viewModelScope.launch(Dispatchers.IO) {
+            isTizenAppsLoading.value = true
+            appendTizenLog("[*] Querying installed apps list via SDB pkgcmd -l...")
+            val res = tizenSdbClient.listInstalledApps(tvIp)
+            if (res.isSuccess) {
+                val list = res.getOrNull() ?: emptyList()
+                _installedTizenApps.value = list
+                appendTizenLog("[✓] Found ${list.size} installed application(s) on TV.")
+            } else {
+                appendTizenLog("[!] Failed to list apps: ${res.exceptionOrNull()?.message}")
+            }
+            isTizenAppsLoading.value = false
+        }
+    }
+
+    fun launchTizenApp(appId: String) {
+        val tvIp = preferences.tvIp.trim()
+        viewModelScope.launch(Dispatchers.IO) {
+            appendTizenLog("[*] Launching $appId on TV...")
+            val res = tizenSdbClient.launchApp(tvIp, appId)
+            if (res.isSuccess) {
+                appendTizenLog("[✓] Launch command executed: $appId")
+            } else {
+                appendTizenLog("[!] Failed to launch: ${res.exceptionOrNull()?.message}")
+            }
+        }
+    }
+
+    fun stopTizenApp(appId: String) {
+        val tvIp = preferences.tvIp.trim()
+        viewModelScope.launch(Dispatchers.IO) {
+            appendTizenLog("[*] Stopping $appId on TV...")
+            val res = tizenSdbClient.stopApp(tvIp, appId)
+            if (res.isSuccess) {
+                appendTizenLog("[✓] Stopped: $appId")
+            } else {
+                appendTizenLog("[!] Failed to stop: ${res.exceptionOrNull()?.message}")
+            }
+        }
+    }
+
+    fun uninstallTizenApp(pkgId: String) {
+        val tvIp = preferences.tvIp.trim()
+        viewModelScope.launch(Dispatchers.IO) {
+            appendTizenLog("[*] Uninstalling package $pkgId from TV...")
+            val res = tizenSdbClient.uninstallApp(tvIp, pkgId)
+            if (res.isSuccess) {
+                appendTizenLog("[✓] Uninstalled: $pkgId")
+                loadInstalledTizenApps()
+            } else {
+                appendTizenLog("[ERROR] Failed to uninstall: ${res.exceptionOrNull()?.message}")
+            }
+        }
+    }
+
+    fun runTizenSdbDiagnostics() {
+        val tvIp = preferences.tvIp.trim()
+        val phoneIp = tvDeployServer.getLocalIpAddress()
+        viewModelScope.launch(Dispatchers.IO) {
+            isRunningTizenDiagnostics.value = true
+            appendTizenLog("[*] Running SDB & TV port diagnostics ($tvIp)...")
+            val diag = tizenSdbClient.runDiagnostics(tvIp, phoneIp)
+            _tizenDiagnostics.value = diag
+            appendTizenLog("[*] SDB Port 26101: ${if (diag.isSdbPort26101Open) "OPEN (Ready)" else "CLOSED"}")
+            appendTizenLog("[*] Remote Port 8002: ${if (diag.isPort8002Open) "OPEN" else "CLOSED"}")
+            appendTizenLog("[*] Summary: ${diag.summary}")
+            isRunningTizenDiagnostics.value = false
         }
     }
 

@@ -26,6 +26,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Key
@@ -64,6 +65,7 @@ import com.example.ui.screens.ConnectionScreen
 import com.example.ui.screens.DiagnosticsScreen
 import com.example.ui.screens.FullRemoteScreen
 import com.example.ui.screens.SettingsScreen
+import com.example.ui.screens.TizenInstallerScreen
 import com.example.ui.screens.VoiceControlScreen
 import com.example.ui.screens.YouTubeSearchScreen
 import com.example.ui.theme.MyApplicationTheme
@@ -79,6 +81,7 @@ import com.example.ui.theme.RemoteWarning
 
 enum class RemoteScreen(val title: String, val icon: ImageVector, val tag: String) {
     REMOTE("Remote", Icons.Default.Tv, "tab_remote"),
+    INSTALLER("Installer", Icons.Default.Apps, "tab_installer"),
     VOICE("Voice", Icons.Default.Mic, "tab_voice"),
     YOUTUBE("YouTube", Icons.Default.PlayArrow, "tab_youtube"),
     ASSISTANT("Assistant", Icons.Default.AutoAwesome, "tab_assistant"),
@@ -208,6 +211,21 @@ fun SamsungRemoteApp(viewModel: SamsungRemoteViewModel = viewModel()) {
                             }
                         }
 
+                        // Direct top shortcut: Tizen Installer
+                        IconButton(
+                            onClick = { currentScreen = RemoteScreen.INSTALLER },
+                            modifier = Modifier
+                                .size(36.dp)
+                                .testTag("btn_top_shortcut_installer")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Apps,
+                                contentDescription = "Tizen Installer",
+                                tint = if (currentScreen == RemoteScreen.INSTALLER) RemoteNeonGreen else RemoteTextSecondary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
                         // Direct top shortcut: APIs Tab
                         IconButton(
                             onClick = { currentScreen = RemoteScreen.APIS },
@@ -323,6 +341,13 @@ fun SamsungRemoteApp(viewModel: SamsungRemoteViewModel = viewModel()) {
                         onNavigateToConnection = { currentScreen = RemoteScreen.CONNECTION },
                         onNavigateToSettings = { currentScreen = RemoteScreen.SETTINGS },
                         onNavigateToVoice = { currentScreen = RemoteScreen.VOICE }
+                    )
+                }
+                RemoteScreen.INSTALLER -> {
+                    TizenInstallerScreen(
+                        viewModel = viewModel,
+                        onNavigateToConnection = { currentScreen = RemoteScreen.CONNECTION },
+                        onBackClick = { currentScreen = RemoteScreen.REMOTE }
                     )
                 }
                 RemoteScreen.VOICE -> {
