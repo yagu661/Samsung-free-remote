@@ -462,7 +462,7 @@ class TvAppDeployServer(
         val xml = """<?xml version="1.0" encoding="UTF-8"?>
 <rsp stat="ok">
     <list>
-        <widget id="aistudio01.samsungassistant">
+        <widget id="aistudio01.SamsungAssistant">
             <title>Samsung AI TV Assistant</title>
             <compression size="26296" type="zip"/>
             <description>Samsung Smart TV AI Assistant with YouTube &amp; Voice</description>

@@ -30,7 +30,7 @@ class TizenAppSyncHandler(http.server.SimpleHTTPRequestHandler):
             xml_content = f"""<?xml version="1.0" encoding="UTF-8"?>
 <rsp stat="ok">
     <list>
-        <widget id="aistudio01.samsungassistant">
+        <widget id="aistudio01.SamsungAssistant">
             <title>Samsung AI TV Assistant</title>
             <compression size="{file_size}" type="zip"/>
             <description>AI-Powered Voice Assistant and Entertainment Hub with YouTube and Spotify for Samsung Tizen Smart TV</description>
