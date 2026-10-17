@@ -26,12 +26,24 @@ import java.net.Socket
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 
+data class AssistantSyncMessage(
+    val id: Long = System.currentTimeMillis(),
+    val query: String = "",
+    val response: String = "",
+    val actionType: String = "", // e.g. "LAUNCH_APP", "SEARCH_YOUTUBE", "VOLUME", "REPLY"
+    val actionTarget: String = "",
+    val providerUsed: String = "OpenRouter",
+    val status: String = "SUCCESS",
+    val timestamp: Long = System.currentTimeMillis()
+)
+
 data class TvServerState(
     val isRunning: Boolean = false,
     val port: Int = 8080,
     val serverUrl: String = "",
     val downloadCount: Int = 0,
     val apiSyncCount: Int = 0,
+    val isTvCompanionOnline: Boolean = false,
     val lastEvent: String = "Server stopped"
 )
 
@@ -48,6 +60,20 @@ class TvAppDeployServer(
 
     private val _state = MutableStateFlow(TvServerState())
     val state: StateFlow<TvServerState> = _state.asStateFlow()
+
+    private val _latestAssistantMessage = MutableStateFlow<AssistantSyncMessage?>(null)
+    val latestAssistantMessage: StateFlow<AssistantSyncMessage?> = _latestAssistantMessage.asStateFlow()
+
+    fun broadcastAssistantCommand(query: String, response: String, actionType: String, actionTarget: String = "") {
+        _latestAssistantMessage.value = AssistantSyncMessage(
+            id = System.currentTimeMillis(),
+            query = query,
+            response = response,
+            actionType = actionType,
+            actionTarget = actionTarget,
+            providerUsed = preferences.aiProvider
+        )
+    }
 
     fun getLocalIpAddress(): String {
         try {
@@ -198,6 +224,25 @@ class TvAppDeployServer(
                 val cleanPath = path.substringBefore('?')
 
                 when {
+                    // Latest Assistant Message for TV Companion (Mode A)
+                    cleanPath == "/api/assistant/latest" && method == "GET" -> {
+                        serveLatestAssistantMessage(output)
+                    }
+
+                    // TV App Heartbeat
+                    cleanPath == "/api/tv/heartbeat" && method == "POST" -> {
+                        handleTvHeartbeat(body, output)
+                        _state.value = _state.value.copy(
+                            isTvCompanionOnline = true,
+                            lastEvent = "TV App heartbeat verified from $clientIp"
+                        )
+                    }
+
+                    // TV Assistant Command Submission
+                    cleanPath == "/api/assistant/command" && method == "POST" -> {
+                        handleAssistantCommandPost(body, output)
+                    }
+
                     // API Keys JSON Endpoint
                     (cleanPath == "/api/keys" || cleanPath == "/api/config" || cleanPath == "/apis") && method == "GET" -> {
                         serveApiKeysJson(output)
@@ -442,6 +487,74 @@ class TvAppDeployServer(
                 "Access-Control-Allow-Origin: *\r\n" +
                 "Connection: close\r\n\r\n"
 
+        output.write(header.toByteArray(StandardCharsets.UTF_8))
+        output.write(bytes)
+        output.flush()
+    }
+
+    private fun serveLatestAssistantMessage(output: BufferedOutputStream) {
+        val msg = _latestAssistantMessage.value
+        val json = if (msg != null) {
+            JSONObject().apply {
+                put("id", msg.id)
+                put("query", msg.query)
+                put("response", msg.response)
+                put("actionType", msg.actionType)
+                put("actionTarget", msg.actionTarget)
+                put("providerUsed", msg.providerUsed)
+                put("status", msg.status)
+                put("timestamp", msg.timestamp)
+            }.toString()
+        } else {
+            JSONObject().apply {
+                put("status", "idle")
+            }.toString()
+        }
+        val bytes = json.toByteArray(StandardCharsets.UTF_8)
+        val header = "HTTP/1.1 200 OK\r\n" +
+                "Content-Type: application/json; charset=utf-8\r\n" +
+                "Content-Length: ${bytes.size}\r\n" +
+                "Access-Control-Allow-Origin: *\r\n" +
+                "Connection: close\r\n\r\n"
+        output.write(header.toByteArray(StandardCharsets.UTF_8))
+        output.write(bytes)
+        output.flush()
+    }
+
+    private fun handleTvHeartbeat(body: String, output: BufferedOutputStream) {
+        val resp = JSONObject().apply {
+            put("status", "ok")
+            put("phoneModel", "Samsung Galaxy M30s")
+            put("time", System.currentTimeMillis())
+        }.toString()
+        val bytes = resp.toByteArray(StandardCharsets.UTF_8)
+        val header = "HTTP/1.1 200 OK\r\n" +
+                "Content-Type: application/json; charset=utf-8\r\n" +
+                "Content-Length: ${bytes.size}\r\n" +
+                "Access-Control-Allow-Origin: *\r\n" +
+                "Connection: close\r\n\r\n"
+        output.write(header.toByteArray(StandardCharsets.UTF_8))
+        output.write(bytes)
+        output.flush()
+    }
+
+    private fun handleAssistantCommandPost(body: String, output: BufferedOutputStream) {
+        val query = try {
+            JSONObject(body).optString("query", "")
+        } catch (_: Exception) {
+            ""
+        }
+        val resp = JSONObject().apply {
+            put("status", "received")
+            put("query", query)
+            put("response", "Command received by Galaxy M30s")
+        }.toString()
+        val bytes = resp.toByteArray(StandardCharsets.UTF_8)
+        val header = "HTTP/1.1 200 OK\r\n" +
+                "Content-Type: application/json; charset=utf-8\r\n" +
+                "Content-Length: ${bytes.size}\r\n" +
+                "Access-Control-Allow-Origin: *\r\n" +
+                "Connection: close\r\n\r\n"
         output.write(header.toByteArray(StandardCharsets.UTF_8))
         output.write(bytes)
         output.flush()

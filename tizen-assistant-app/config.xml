@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<widget xmlns:tizen="http://tizen.org/ns/widgets" xmlns="http://www.w3.org/ns/widgets" id="http://samsung.ai/SamsungAssistant" version="1.0.0" viewmodes="fullscreen">
+<widget xmlns:tizen="http://tizen.org/ns/widgets" xmlns="http://www.w3.org/ns/widgets" id="http://samsung.ai/SamsungAssistant" version="1.1.0" viewmodes="fullscreen">
     <access origin="*" subdomains="true"></access>
     <tizen:application id="aistudio01.SamsungAssistant" package="aistudio01" required_version="2.3"/>
     <author href="https://github.com/soumya">Soumya</author>
     <content src="index.html"/>
-    <description>AI Voice Assistant and Companion for Samsung Tizen Smart TVs (UA32T4410AKXXL)</description>
+    <description>Samsung Smart TV AI Entertainment OS and Companion Hub (UA32T4410AKXXL)</description>
     <feature name="http://tizen.org/feature/screen.size.all"/>
     <icon src="icon.png"/>
     <tizen:metadata key="http://tizen.org/metadata/app_ui_type/base_screen_resolution" value="fullscreen"/>
@@ -13,6 +13,9 @@
     <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
     <tizen:privilege name="http://tizen.org/privilege/internet"/>
     <tizen:privilege name="http://developer.samsung.com/privilege/network.public"/>
+    <tizen:privilege name="http://tizen.org/privilege/application.launch"/>
+    <tizen:privilege name="http://tizen.org/privilege/appmanager"/>
+    <tizen:privilege name="http://tizen.org/privilege/tv.window"/>
     <tizen:profile name="tv"/>
     <tizen:setting screen-orientation="landscape" context-menu="enable" background-support="disable" encryption="disable" install-location="auto" hwkey-event="enable"/>
 </widget>

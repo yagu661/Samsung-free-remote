@@ -351,6 +351,12 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
     fun launchApp(app: TvApp) {
         viewModelScope.launch {
             tvController.launchApplication(app)
+            tvDeployServer.broadcastAssistantCommand(
+                query = "Launch ${app.name}",
+                response = "Starting official ${app.name} application on Samsung Smart TV...",
+                actionType = "LAUNCH_APP",
+                actionTarget = app.id
+            )
         }
     }
 
@@ -359,6 +365,14 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
     fun startVoiceListening() {
         _voiceStatusMessage.value = "Listening... Speak your command"
         _pendingVoiceAction.value = null
+
+        // Pop up the Assistant HUD on TV screen immediately as an overlay
+        tvDeployServer.broadcastAssistantCommand(
+            query = "Listening...",
+            response = "Speak your command into your Galaxy M30s...",
+            actionType = "LISTENING"
+        )
+
         val lang = preferences.speechLanguage
         voiceInputManager.startListening(lang) { recognizedText ->
             handleVoiceRecognized(recognizedText)
@@ -367,6 +381,11 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
 
     fun startVoiceListeningForYouTube(onQueryRecognized: (String) -> Unit) {
         _voiceStatusMessage.value = "Listening for YouTube search query..."
+        tvDeployServer.broadcastAssistantCommand(
+            query = "Listening for YouTube search...",
+            response = "Speak video title or query...",
+            actionType = "LISTENING"
+        )
         val lang = preferences.speechLanguage
         voiceInputManager.startListening(lang) { spoken ->
             handleYouTubeQuerySpoken(spoken, onQueryRecognized)
@@ -430,6 +449,13 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
         viewModelScope.launch {
             _voiceStatusMessage.value = "Recognized: \"$speech\". Analyzing command..."
 
+            // Tell TV we received the speech and are processing
+            tvDeployServer.broadcastAssistantCommand(
+                query = speech,
+                response = "Processing command...",
+                actionType = "THINKING"
+            )
+
             // 1. Try deterministic parser first (zero latency, offline)
             val directAction = TvCommandParser.parseDeterministic(speech)
             if (directAction != null) {
@@ -439,6 +465,11 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
                 } else {
                     _pendingVoiceAction.value = directAction
                     _voiceStatusMessage.value = "Matched command: ${getActionDescription(directAction)}"
+                    tvDeployServer.broadcastAssistantCommand(
+                        query = speech,
+                        response = "Ready to execute: ${getActionDescription(directAction)}",
+                        actionType = "AI_RESPONSE"
+                    )
                 }
                 return@launch
             }
@@ -455,6 +486,12 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
                     } else {
                         _pendingVoiceAction.value = ytAction
                         _voiceStatusMessage.value = "Matched: Search YouTube for \"$extractedQuery\""
+                        tvDeployServer.broadcastAssistantCommand(
+                            query = speech,
+                            response = "Searching YouTube for $extractedQuery",
+                            actionType = "SEARCH_YOUTUBE",
+                            actionTarget = extractedQuery
+                        )
                     }
                     return@launch
                 }
@@ -462,7 +499,13 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
 
             // 2. Use AI interpreter for natural language
             if (!useGeminiAi.value) {
-                _voiceStatusMessage.value = "Command not recognized deterministically and AI engine is disabled in Settings."
+                val noAiMsg = "Command not recognized deterministically. Try saying: Open YouTube or Play Spotify."
+                _voiceStatusMessage.value = noAiMsg
+                tvDeployServer.broadcastAssistantCommand(
+                    query = speech,
+                    response = noAiMsg,
+                    actionType = "AI_RESPONSE"
+                )
                 return@launch
             }
 
@@ -478,12 +521,29 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
                     } else {
                         _pendingVoiceAction.value = validatedAction
                         _voiceStatusMessage.value = assistantResult.textResponse
+                        tvDeployServer.broadcastAssistantCommand(
+                            query = speech,
+                            response = assistantResult.textResponse,
+                            actionType = "AI_RESPONSE"
+                        )
                     }
                 } else {
                     _voiceStatusMessage.value = assistantResult.textResponse
+                    // Broadcast conversational AI reply to TV so TV speaks it aloud!
+                    tvDeployServer.broadcastAssistantCommand(
+                        query = speech,
+                        response = assistantResult.textResponse,
+                        actionType = "AI_RESPONSE"
+                    )
                 }
             }.onFailure { err ->
-                _voiceStatusMessage.value = "AI error: ${err.message}. Check API key in Settings or try direct commands like 'Volume Up'."
+                val errorMsg = "AI error: ${err.message}. Try saying: Open YouTube or Play Spotify."
+                _voiceStatusMessage.value = errorMsg
+                tvDeployServer.broadcastAssistantCommand(
+                    query = speech,
+                    response = errorMsg,
+                    actionType = "AI_RESPONSE"
+                )
             }
         }
     }
@@ -501,6 +561,33 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
 
     fun executeAction(action: TvAction) {
         viewModelScope.launch {
+            // Broadcast to local TV companion so Mode A TV Assistant HUD pops up and speaks in real time
+            val actionType = when (action) {
+                is TvAction.LaunchApp -> "LAUNCH_APP"
+                is TvAction.YouTubeSearch -> "SEARCH_YOUTUBE"
+                is TvAction.AdjustVolume -> "VOLUME"
+                else -> "COMMAND"
+            }
+            val target = when (action) {
+                is TvAction.LaunchApp -> action.app.id
+                is TvAction.YouTubeSearch -> action.query
+                is TvAction.AdjustVolume -> action.delta.toString()
+                else -> ""
+            }
+            val voiceReply = when (action) {
+                is TvAction.LaunchApp -> "Opening official ${action.app.name} on your Samsung Smart TV."
+                is TvAction.YouTubeSearch -> "Searching YouTube for ${action.query}."
+                is TvAction.AdjustVolume -> if (action.delta > 0) "Volume turned up." else "Volume turned down."
+                is TvAction.PressKey -> "Pressed ${action.key.label} on TV."
+                else -> getActionDescription(action)
+            }
+            tvDeployServer.broadcastAssistantCommand(
+                query = getActionDescription(action),
+                response = voiceReply,
+                actionType = actionType,
+                actionTarget = target
+            )
+
             when (action) {
                 is TvAction.PressKey -> {
                     tvController.sendRemoteKey(action.key)

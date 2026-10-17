@@ -134,20 +134,30 @@ class SamsungTvSocketManager {
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                Log.e("SamsungRemote", "WS Failure: ${t.message}", t)
-                val isAuthRequired = t.message?.contains("unauthorized", ignoreCase = true) == true
+                Log.e("SamsungRemote", "WS Failure on $ip:$port: ${t.message}", t)
+                val isAuthRequired = t.message?.contains("unauthorized", ignoreCase = true) == true ||
+                                     response?.code == 401 || response?.code == 403
                 if (isAuthRequired) {
                     listener?.onStatusChanged(
                         TvConnectionStatus.AUTHORIZATION_REQUIRED,
-                        "Authorization required on TV screen."
+                        "Samsung TV Pairing: Please look at your TV screen and select 'Allow' using your remote."
                     )
+                } else if (port == 8002) {
+                    // Automatically fallback to port 8001 (unencrypted WS)
+                    Log.d("SamsungRemote", "Port 8002 (WSS) failed, attempting automatic fallback to Port 8001 (WS)...")
+                    listener?.onStatusChanged(
+                        TvConnectionStatus.CONNECTING,
+                        "Retrying on TV port 8001 (WS fallback)..."
+                    )
+                    connect(ip, port = 8001, token = token)
+                    return
                 } else {
                     listener?.onStatusChanged(
                         TvConnectionStatus.ERROR,
-                        t.message ?: "Connection failed. Check TV IP and ensure TV is on."
+                        t.message ?: "Connection failed. Ensure TV is ON and connected to the same Wi-Fi."
                     )
                 }
-                listener?.onError(t.localizedMessage ?: "WebSocket error")
+                listener?.onError(t.localizedMessage ?: "WebSocket connection error")
             }
         })
     }
