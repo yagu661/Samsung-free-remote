@@ -27,7 +27,6 @@
     var btnTrayVoice = document.getElementById('btnTrayVoice');
     var headerMicBtn = document.getElementById('headerMicBtn');
     var heroStatusPill = document.getElementById('heroStatusPill');
-    var trayActionBadge = document.getElementById('trayActionBadge');
     var topCompanionText = document.getElementById('topCompanionText');
     var btnSearchYouTube = document.getElementById('btnSearchYouTube');
     var btnSearchSpotify = document.getElementById('btnSearchSpotify');
@@ -36,6 +35,21 @@
     var btnSavePhoneIp = document.getElementById('btnSavePhoneIp');
     var diagCompanionStatus = document.getElementById('diagCompanionStatus');
 
+    // YouTube View Elements
+    var ytCurrentTitle = document.getElementById('ytCurrentTitle');
+    var ytSearchQueryLabel = document.getElementById('ytSearchQueryLabel');
+    var ytSearchBox = document.getElementById('ytSearchBox');
+    var ytBtnSearchSubmit = document.getElementById('ytBtnSearchSubmit');
+    var ytBtnCinema = document.getElementById('ytBtnCinema');
+    var ytFrameWrapper = document.getElementById('ytFrameWrapper');
+    var embeddedYoutubeFrame = document.getElementById('embeddedYoutubeFrame');
+    var cinemaExitHint = document.getElementById('cinemaExitHint');
+
+    // Spotify View Elements
+    var spotifyPlaylistLabel = document.getElementById('spotifyPlaylistLabel');
+    var embeddedSpotifyFrame = document.getElementById('embeddedSpotifyFrame');
+    var spotifyFrameWrapper = document.getElementById('spotifyFrameWrapper');
+
     var currentVolume = 25;
     var hudTimer = null;
     var volTimer = null;
@@ -43,6 +57,7 @@
     var currentActiveTab = 'home';
     var lastProcessedMessageId = 0;
     var installedAppMap = {};
+    var isCinemaMode = false;
 
     // Detect Companion Phone Host IP from current URL or localStorage
     var companionPhoneIp = "192.168.1.15";
@@ -92,7 +107,14 @@
 
     // 2. Tab Navigation
     function switchTab(tabId) {
+        if (!tabId) return;
         currentActiveTab = tabId;
+
+        // If switching away from cinema mode, restore standard view
+        if (isCinemaMode && tabId !== 'youtube') {
+            exitCinemaMode();
+        }
+
         navTabs.forEach(function (tab) {
             if (tab.getAttribute('data-tab') === tabId) {
                 tab.classList.add('active');
@@ -109,6 +131,29 @@
                 view.classList.remove('active');
             }
         });
+
+        // Lazy-load players on first tab entry so iframes never block initial page load or steal focus
+        if (tabId === 'youtube') {
+            if (embeddedYoutubeFrame && (!embeddedYoutubeFrame.src || embeddedYoutubeFrame.src === 'about:blank' || embeddedYoutubeFrame.src === window.location.href)) {
+                loadEmbeddedYouTube("Bengali songs");
+            }
+        } else if (tabId === 'spotify') {
+            if (embeddedSpotifyFrame && (!embeddedSpotifyFrame.src || embeddedSpotifyFrame.src === 'about:blank' || embeddedSpotifyFrame.src === window.location.href)) {
+                loadEmbeddedSpotify('playlist/37i9dQZF1DX0XUfTFmZeMt', "Today's Top Hits");
+            }
+        }
+
+        // Auto focus first interactive item in new tab
+        setTimeout(function () {
+            var firstItem = document.querySelector('.tab-view.active .media-chip') ||
+                            document.querySelector('.tab-view.active .prompt-chip') ||
+                            document.querySelector('.tab-view.active .yt-video-card') ||
+                            document.querySelector('.tab-view.active input') ||
+                            document.querySelector('.tab-view.active button');
+            if (firstItem) {
+                firstItem.focus();
+            }
+        }, 100);
     }
 
     // 3. Remote Button Feedback Toast
@@ -146,259 +191,144 @@
     // 5. Voice Text-to-Speech (TTS) on TV Speakers
     function speakOnTv(text) {
         if (!text || !text.trim()) return;
-        // Strip markdown formatting (*, _, #, `, [, ])
         var cleanText = text.replace(/[*_#`[\]()]/g, ' ').replace(/\s+/g, ' ').trim();
-        if (!cleanText) return;
-
-        // 1. Web Speech API (Supported by Tizen Chromium engine)
         try {
-            if ('speechSynthesis' in window) {
+            if (window.speechSynthesis) {
                 window.speechSynthesis.cancel();
                 var utterance = new SpeechSynthesisUtterance(cleanText);
-                utterance.lang = 'en-US';
                 utterance.rate = 1.0;
                 utterance.pitch = 1.0;
+                utterance.volume = 1.0;
                 window.speechSynthesis.speak(utterance);
-                return;
             }
-        } catch (e) {
-            console.warn("speechSynthesis error:", e);
+        } catch (ex) {
+            console.log("TTS playback skipped on device:", ex);
         }
-
-        // 2. Audio Element Fallback
-        try {
-            var snippet = cleanText.length > 180 ? cleanText.substring(0, 180) : cleanText;
-            var ttsUrl = "https://translate.google.com/translate_tts?ie=UTF-8&tl=en&client=tw-ob&q=" + encodeURIComponent(snippet);
-            var audio = new Audio(ttsUrl);
-            audio.play().catch(function (_) {});
-        } catch (_) {}
     }
 
-    // 6. Mode A TV Assistant Slide-up / Floating HUD
-    function showAssistantHud(query, actionPill, responseText, shouldSpeak) {
+    // 6. Floating Assistant HUD (NON-DISRUPTIVE POPUP OVER CURRENT TAB)
+    function showAssistantHud(query, actionPill, responseText, speakAloud) {
         if (!assistantHudOverlay) return;
-        if (hudQueryText) hudQueryText.textContent = '"' + query + '"';
-        if (hudActionPill) hudActionPill.textContent = actionPill.toUpperCase();
-        if (hudResponseText) hudResponseText.textContent = responseText;
 
-        if (heroStatusPill) heroStatusPill.textContent = "ACTION: " + actionPill.toUpperCase();
-        if (trayActionBadge) trayActionBadge.textContent = actionPill.toUpperCase();
+        if (hudQueryText) hudQueryText.textContent = '"' + query + '"';
+        if (hudActionPill) hudActionPill.textContent = actionPill || 'AI VOICE PRO';
+        if (hudResponseText) hudResponseText.textContent = responseText || 'Executing command...';
 
         assistantHudOverlay.classList.remove('hidden');
+
+        if (speakAloud && responseText) {
+            speakOnTv(responseText);
+        }
+
         if (hudTimer) clearTimeout(hudTimer);
         hudTimer = setTimeout(function () {
             hideAssistantHud();
-        }, 6500);
-
-        // Add to assistant conversational view history
-        appendAssistantChat(query, responseText, actionPill);
-
-        // Speak aloud on TV speakers if requested
-        if (shouldSpeak && responseText) {
-            speakOnTv(responseText);
-        }
+        }, 5500);
     }
 
     function hideAssistantHud() {
-        if (assistantHudOverlay) {
-            assistantHudOverlay.classList.add('hidden');
+        if (!assistantHudOverlay) return;
+        assistantHudOverlay.classList.add('hidden');
+        if (hudTimer) {
+            clearTimeout(hudTimer);
+            hudTimer = null;
         }
     }
 
-    function appendAssistantChat(userQuery, aiResponse, pill) {
-        if (!assistantChatHistory) return;
+    // 7. REAL IN-APP YOUTUBE TV CONTROLLER
+    function loadEmbeddedYouTube(query) {
+        var cleanQuery = (query || "Bengali songs").trim();
+        showRemoteBadge("YOUTUBE SEARCH");
 
-        // User bubble
-        var uBubble = document.createElement('div');
-        uBubble.className = 'chat-bubble user-bubble';
-        uBubble.innerHTML = '<div class="bubble-avatar">You</div><div class="bubble-content"><span class="bubble-sender">Galaxy M30s / Remote</span><p>' + escapeHtml(userQuery) + '</p></div>';
-        assistantChatHistory.appendChild(uBubble);
+        if (currentActiveTab !== 'youtube') {
+            switchTab('youtube');
+        }
 
-        // AI bubble
-        var aBubble = document.createElement('div');
-        aBubble.className = 'chat-bubble assistant-bubble';
-        aBubble.innerHTML = '<div class="bubble-avatar">AI</div><div class="bubble-content"><span class="bubble-sender">Samsung AI Companion</span><p>' + escapeHtml(aiResponse) + '</p><span class="bubble-pill">' + escapeHtml(pill) + '</span></div>';
-        assistantChatHistory.appendChild(aBubble);
+        if (ytCurrentTitle) ytCurrentTitle.textContent = "YouTube: " + cleanQuery;
+        if (ytSearchQueryLabel) ytSearchQueryLabel.textContent = "Currently Playing: " + cleanQuery;
+        if (ytSearchBox) ytSearchBox.value = cleanQuery;
 
-        assistantChatHistory.scrollTop = assistantChatHistory.scrollHeight;
+        var embedUrl = "https://www.youtube-nocookie.com/embed?listType=search&list=" + encodeURIComponent(cleanQuery) + "&autoplay=1&enablejsapi=1";
+        if (embeddedYoutubeFrame) {
+            embeddedYoutubeFrame.src = embedUrl;
+        }
+
+        showAssistantHud(
+            cleanQuery,
+            "YOUTUBE VOICE PRO",
+            "Playing " + cleanQuery + " on in-app YouTube TV",
+            true
+        );
     }
 
-    function escapeHtml(str) {
-        if (!str) return '';
-        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-    }
-
-    // 7. DYNAMIC TIZEN INSTALLED APP SCANNER
-    function scanInstalledApps() {
-        if (typeof tizen !== 'undefined' && tizen.application && typeof tizen.application.getAppsInfo === 'function') {
-            try {
-                tizen.application.getAppsInfo(function (apps) {
-                    console.log("Found " + apps.length + " installed Tizen applications.");
-                    apps.forEach(function (app) {
-                        var nameLower = (app.name || "").toLowerCase();
-                        var idLower = (app.id || "").toLowerCase();
-
-                        if (nameLower.indexOf('youtube') !== -1 || idLower.indexOf('youtube') !== -1 || idLower.indexOf('111299001912') !== -1) {
-                            installedAppMap['youtube'] = app.id;
-                            console.log("Detected YouTube app ID:", app.id);
-                        }
-                        if (nameLower.indexOf('spotify') !== -1 || idLower.indexOf('spotify') !== -1 || idLower.indexOf('3201606009684') !== -1) {
-                            installedAppMap['spotify'] = app.id;
-                            console.log("Detected Spotify app ID:", app.id);
-                        }
-                        if (nameLower.indexOf('netflix') !== -1 || idLower.indexOf('netflix') !== -1 || idLower.indexOf('11101200001') !== -1) {
-                            installedAppMap['netflix'] = app.id;
-                            console.log("Detected Netflix app ID:", app.id);
-                        }
-                        if (nameLower.indexOf('prime') !== -1 || idLower.indexOf('prime') !== -1 || idLower.indexOf('3201512006785') !== -1) {
-                            installedAppMap['prime'] = app.id;
-                            console.log("Detected Prime Video app ID:", app.id);
-                        }
-                    });
-                }, function (err) {
-                    console.warn("getAppsInfo error:", err);
-                });
-            } catch (e) {
-                console.warn("scanInstalledApps exception:", e);
-            }
+    function toggleCinemaMode() {
+        if (!ytFrameWrapper) return;
+        isCinemaMode = !isCinemaMode;
+        if (isCinemaMode) {
+            ytFrameWrapper.classList.add('cinema-fullscreen');
+            showRemoteBadge("CINEMA FULLSCREEN");
+            showAssistantHud("Cinema Fullscreen", "DISPLAY", "Press RETURN/BACK on TV Remote to exit Fullscreen", false);
+        } else {
+            ytFrameWrapper.classList.remove('cinema-fullscreen');
+            showRemoteBadge("WINDOW VIEW");
         }
     }
 
-    // Progressive launch helper: tries each ID in sequence until one succeeds
-    function tryLaunchIds(idList, onSuccess, onAllFailed) {
-        if (!idList || idList.length === 0) {
-            if (onAllFailed) onAllFailed();
-            return;
+    function exitCinemaMode() {
+        if (ytFrameWrapper && isCinemaMode) {
+            isCinemaMode = false;
+            ytFrameWrapper.classList.remove('cinema-fullscreen');
+            showRemoteBadge("WINDOW VIEW");
+        }
+    }
+
+    // 8. REAL IN-APP SPOTIFY CONTROLLER
+    function loadEmbeddedSpotify(playlistUri, title) {
+        var cleanUri = (playlistUri || "playlist/37i9dQZF1DX0XUfTFmZeMt").trim();
+        var displayTitle = title || "Today's Top Hits";
+        showRemoteBadge("SPOTIFY PLAY");
+
+        if (currentActiveTab !== 'spotify') {
+            switchTab('spotify');
         }
 
-        var currentId = idList[0];
-        var remainingIds = idList.slice(1);
+        if (spotifyPlaylistLabel) spotifyPlaylistLabel.textContent = "Current: " + displayTitle;
+
+        var embedUrl = "https://open.spotify.com/embed/" + cleanUri + "?utm_source=generator&theme=0&autoplay=1";
+        if (embeddedSpotifyFrame) {
+            embeddedSpotifyFrame.src = embedUrl;
+        }
+
+        showAssistantHud(
+            displayTitle,
+            "SPOTIFY VOICE PRO",
+            "Playing " + displayTitle + " on Spotify TV",
+            true
+        );
+    }
+
+    // 9. INSTALLED APPLICATION DISPATCHER (For Netflix, Prime Video, Browser)
+    function launchApp(appId, appName) {
+        showRemoteBadge("LAUNCHING " + appName.toUpperCase());
+        showAssistantHud("Open " + appName, "APP LAUNCH", "Starting " + appName + " on your Samsung Smart TV...", true);
 
         if (typeof tizen !== 'undefined' && tizen.application) {
             try {
-                tizen.application.launch(currentId, function () {
-                    console.log("Successfully launched Tizen app ID: " + currentId);
-                    if (onSuccess) onSuccess(currentId);
+                tizen.application.launch(appId, function () {
+                    showAssistantHud(appName + " Active", "SUCCESS", appName + " is running on your TV.", false);
                 }, function (err) {
-                    console.warn("Failed launching ID: " + currentId + ", trying next...", err);
-                    tryLaunchIds(remainingIds, onSuccess, onAllFailed);
+                    console.warn("Failed launching app ID:", appId, err);
+                    showAssistantHud(appName + " Launch", "NOTICE", "Opening " + appName + " in Smart TV browser...", false);
+                    if (appName.toLowerCase() === 'netflix') {
+                        launchInBrowser("https://www.netflix.com");
+                    } else if (appName.toLowerCase().indexOf('prime') !== -1) {
+                        launchInBrowser("https://www.primevideo.com");
+                    }
                 });
             } catch (ex) {
-                console.warn("Exception launching ID: " + currentId, ex);
-                tryLaunchIds(remainingIds, onSuccess, onAllFailed);
+                console.warn("App launch exception:", ex);
             }
-        } else {
-            console.log("Simulation mode for ID: " + currentId);
-            if (onSuccess) onSuccess(currentId);
         }
-    }
-
-    // 8. GENUINE YOUTUBE APPLICATION LAUNCHER
-    function launchYouTube() {
-        showRemoteBadge("YOUTUBE");
-        showAssistantHud("Open YouTube", "YOUTUBE LAUNCH", "Starting official YouTube application on Samsung Smart TV...", true);
-
-        var candidateIds = [];
-        if (installedAppMap['youtube']) candidateIds.push(installedAppMap['youtube']);
-        candidateIds.push('111299001912');
-        candidateIds.push('111299001912.YouTube');
-        candidateIds.push('org.tizen.youtube');
-
-        tryLaunchIds(candidateIds, function () {
-            showAssistantHud("YouTube Running", "ACTIVE", "Official YouTube application is running on your TV.", false);
-        }, function () {
-            // AppControl deep link fallback
-            if (typeof tizen !== 'undefined' && tizen.application) {
-                try {
-                    var appControl = new tizen.ApplicationControl(
-                        "http://tizen.org/appcontrol/operation/view",
-                        "https://www.youtube.com/tv", null, null, null
-                    );
-                    tizen.application.launchAppControl(appControl, null, function () {
-                        showAssistantHud("YouTube Ready", "ACTIVE", "Launched YouTube TV interface.", false);
-                    }, function () {
-                        launchInBrowser("https://www.youtube.com/tv");
-                    });
-                    return;
-                } catch (_) {
-                    launchInBrowser("https://www.youtube.com/tv");
-                    return;
-                }
-            }
-            launchInBrowser("https://www.youtube.com/tv");
-        });
-    }
-
-    // 9. GENUINE SPOTIFY APPLICATION LAUNCHER
-    function launchSpotify() {
-        showRemoteBadge("SPOTIFY");
-        showAssistantHud("Play Spotify", "SPOTIFY LAUNCH", "Starting official Spotify application on Samsung Smart TV...", true);
-
-        var candidateIds = [];
-        if (installedAppMap['spotify']) candidateIds.push(installedAppMap['spotify']);
-        candidateIds.push('3201606009684');
-        candidateIds.push('3201606009684.Spotify');
-        candidateIds.push('3201504001965');
-        candidateIds.push('spotify');
-
-        tryLaunchIds(candidateIds, function () {
-            showAssistantHud("Spotify Running", "ACTIVE", "Official Spotify application is playing on your TV.", false);
-        }, function () {
-            // AppControl deep link fallback
-            if (typeof tizen !== 'undefined' && tizen.application) {
-                try {
-                    var appControl = new tizen.ApplicationControl(
-                        "http://tizen.org/appcontrol/operation/view",
-                        "spotify://", null, null, null
-                    );
-                    tizen.application.launchAppControl(appControl, null, function () {
-                        showAssistantHud("Spotify Ready", "ACTIVE", "Opened Spotify music interface.", false);
-                    }, function () {
-                        launchInBrowser("https://open.spotify.com");
-                    });
-                    return;
-                } catch (_) {
-                    launchInBrowser("https://open.spotify.com");
-                    return;
-                }
-            }
-            launchInBrowser("https://open.spotify.com");
-        });
-    }
-
-    // 10. GENUINE APPLICATION LAUNCHING (General Dispatcher)
-    function launchApp(appId, appName, extraParam) {
-        if (appId === '111299001912' || appName.toLowerCase() === 'youtube') {
-            launchYouTube();
-            return;
-        }
-        if (appId === '3201606009684' || appName.toLowerCase() === 'spotify') {
-            launchSpotify();
-            return;
-        }
-
-        showRemoteBadge("LAUNCHING " + appName.toUpperCase());
-        showAssistantHud("Open " + appName, "LAUNCHING APP", "Starting official " + appName + " application on Samsung Smart TV...", true);
-
-        var candidateIds = [];
-        if (installedAppMap[appName.toLowerCase()]) candidateIds.push(installedAppMap[appName.toLowerCase()]);
-        candidateIds.push(appId);
-
-        if (appName.toLowerCase().indexOf('netflix') !== -1) {
-            candidateIds.push('11101200001');
-            candidateIds.push('3201512006785');
-        } else if (appName.toLowerCase().indexOf('prime') !== -1) {
-            candidateIds.push('3201512006785');
-            candidateIds.push('org.tizen.primevideo');
-        } else if (appName.toLowerCase().indexOf('browser') !== -1) {
-            candidateIds.push('org.tizen.browser');
-        }
-
-        tryLaunchIds(candidateIds, function () {
-            showAssistantHud(appName + " Launched", "ACTIVE", "Official " + appName + " is now running on your TV.", false);
-        }, function () {
-            showAssistantHud(appName, "STATUS", "Please ensure " + appName + " is installed from the Samsung TV App Store.", true);
-        });
     }
 
     function launchInBrowser(url) {
@@ -408,119 +338,231 @@
                     "http://tizen.org/appcontrol/operation/view",
                     url, null, null, null
                 );
-                tizen.application.launchAppControl(appControl, "org.tizen.browser", null, null);
+                tizen.application.launchAppControl(appControl, null, null, null);
             } catch (_) {}
         }
     }
 
-    // 11. GENUINE YOUTUBE SEARCH LAUNCHING
-    function searchYouTube(query) {
-        if (!query) query = "Bengali songs";
-        showRemoteBadge("YOUTUBE SEARCH");
-        showAssistantHud("Search YouTube: " + query, "YOUTUBE SEARCH", "Searching YouTube for '" + query + "' on your TV...", true);
+    // 10. LOCAL COMPANION HEARTBEAT & ASSISTANT SYNC (Galaxy M30s <-> Smart TV)
+    function syncCompanion() {
+        var host = companionPhoneIp;
+        if (!host) return;
 
-        if (typeof tizen !== 'undefined' && tizen.application) {
-            try {
-                var searchUrl = "https://www.youtube.com/results?search_query=" + encodeURIComponent(query);
-                var appControl = new tizen.ApplicationControl(
-                    "http://tizen.org/appcontrol/operation/view",
-                    searchUrl, null, null, null
-                );
-                tizen.application.launchAppControl(appControl, installedAppMap['youtube'] || "111299001912",
-                    function () {
-                        showAssistantHud(query, "YOUTUBE READY", "Searching for '" + query + "' inside official YouTube TV application.", false);
-                    },
-                    function () {
-                        // Direct launch fallback
-                        launchYouTube();
-                    }
-                );
+        // 1. Send Heartbeat to Phone
+        try {
+            var hbXhr = new XMLHttpRequest();
+            hbXhr.open("POST", "http://" + host + ":8080/api/tv/heartbeat", true);
+            hbXhr.setRequestHeader("Content-Type", "application/json");
+            hbXhr.timeout = 2000;
+            hbXhr.onreadystatechange = function () {
+                if (hbXhr.readyState === 4 && hbXhr.status === 200) {
+                    if (topCompanionText) topCompanionText.textContent = "Galaxy M30s Linked";
+                    if (diagCompanionStatus) diagCompanionStatus.textContent = "Linked (" + host + ":8080)";
+                }
+            };
+            hbXhr.send(JSON.stringify({ tvModel: "UA32T4410", status: "online" }));
+        } catch (_) {}
+
+        // 2. Poll Latest Command from Phone (Instant Pop-up without changing screen tab!)
+        try {
+            var pollXhr = new XMLHttpRequest();
+            pollXhr.open("GET", "http://" + host + ":8080/api/assistant/latest", true);
+            pollXhr.timeout = 2000;
+            pollXhr.onreadystatechange = function () {
+                if (pollXhr.readyState === 4 && pollXhr.status === 200) {
+                    try {
+                        var data = JSON.parse(pollXhr.responseText);
+                        if (data && data.id && data.id !== lastProcessedMessageId) {
+                            lastProcessedMessageId = data.id;
+                            handleCompanionCommand(data);
+                        }
+                    } catch (_) {}
+                }
+            };
+            pollXhr.send();
+        } catch (_) {}
+    }
+
+    function handleCompanionCommand(cmd) {
+        console.log("Received command from Galaxy M30s:", cmd);
+
+        // CASE 1: Remote Key from Phone App (DUAL DISPATCH: Guarantees phone remote works even without WebSocket!)
+        if (cmd.actionType === "REMOTE_KEY") {
+            handleRemoteKeyCommand(cmd.actionTarget);
+            return;
+        }
+
+        // CASE 2: Phone started listening -> Instant Pop-up HUD without leaving current tab!
+        if (cmd.actionType === "LISTENING") {
+            showAssistantHud(cmd.query || "Listening...", "VOICE LISTENER", cmd.response || "Speak into your Galaxy M30s microphone...", false);
+            return;
+        }
+
+        // CASE 3: Phone is processing/thinking
+        if (cmd.actionType === "THINKING") {
+            showAssistantHud(cmd.query || "Processing...", "THINKING", cmd.response || "Analyzing your command...", false);
+            return;
+        }
+
+        // CASE 4: Voice search for YouTube
+        if (cmd.actionType === "SEARCH_YOUTUBE") {
+            var ytQuery = cmd.actionTarget || cmd.query || "Bengali songs";
+            loadEmbeddedYouTube(ytQuery);
+            return;
+        }
+
+        // CASE 5: Launch In-App or Native App
+        if (cmd.actionType === "LAUNCH_APP") {
+            var target = (cmd.actionTarget || "").toLowerCase();
+            if (target === "youtube" || target === "111299001912") {
+                loadEmbeddedYouTube("Bengali songs");
                 return;
-            } catch (ex) {
-                launchYouTube();
+            } else if (target === "spotify" || target === "3201606009684") {
+                loadEmbeddedSpotify('playlist/37i9dQZF1DX0XUfTFmZeMt', "Today's Top Hits");
+                return;
+            } else if (target === "netflix" || target === "11101200001") {
+                launchApp('11101200001', 'Netflix');
+                return;
+            } else if (target === "prime" || target === "3201512006785") {
+                launchApp('3201512006785', 'Prime Video');
                 return;
             }
-        } else {
-            console.log("Simulating YouTube Search for:", query);
-            setTimeout(function () {
-                showAssistantHud(query, "SEARCH ACTIVE", "Simulated YouTube search for '" + query + "'.", false);
-            }, 600);
+        }
+
+        // CASE 6: Volume Adjustment
+        if (cmd.actionType === "VOLUME") {
+            var delta = parseInt(cmd.actionTarget, 10) || 3;
+            adjustVolume(delta);
+            return;
+        }
+
+        // CASE 7: Tab Navigation
+        if (cmd.actionType === "NAV_TAB") {
+            switchTab(cmd.actionTarget || 'home');
+            return;
+        }
+
+        // CASE 8: General Voice Query / AI Conversational Response
+        // IMPORTANT: NEVER SWITCH AWAY TO SEPARATE ASSISTANT TAB!
+        // Display floating HUD popup directly over whatever the user is watching (YouTube, Spotify, etc.)
+        showAssistantHud(
+            cmd.query || "Voice Assistant",
+            cmd.actionType || "AI VOICE PRO",
+            cmd.response || "Command executed",
+            true // Speak aloud on TV speakers!
+        );
+    }
+
+    function handleRemoteKeyCommand(keyName) {
+        if (!keyName) return;
+        var k = keyName.toUpperCase();
+        showRemoteBadge(k.replace('KEY_', ''));
+
+        switch (k) {
+            case 'KEY_UP':
+                moveFocus('up');
+                break;
+            case 'KEY_DOWN':
+                moveFocus('down');
+                break;
+            case 'KEY_LEFT':
+                moveFocus('left');
+                break;
+            case 'KEY_RIGHT':
+                moveFocus('right');
+                break;
+            case 'KEY_ENTER':
+                if (document.activeElement && typeof document.activeElement.click === 'function') {
+                    document.activeElement.click();
+                }
+                break;
+            case 'KEY_RETURN':
+            case 'KEY_BACK':
+                handleBackKey();
+                break;
+            case 'KEY_HOME':
+                switchTab('home');
+                break;
+            case 'KEY_VOLUP':
+                adjustVolume(3);
+                break;
+            case 'KEY_VOLDOWN':
+                adjustVolume(-3);
+                break;
+            case 'KEY_MUTE':
+                toggleMute();
+                break;
+            case 'KEY_PLAY':
+                showRemoteBadge("▶ PLAY");
+                break;
+            case 'KEY_PAUSE':
+                showRemoteBadge("⏸ PAUSE");
+                break;
+            case 'KEY_YOUTUBE':
+                loadEmbeddedYouTube("Bengali songs");
+                break;
+            case 'KEY_SPOTIFY':
+                loadEmbeddedSpotify('playlist/37i9dQZF1DX0XUfTFmZeMt', "Today's Top Hits");
+                break;
+            default:
+                break;
         }
     }
 
-    // 12. NATURAL-LANGUAGE COMMAND PROCESSOR
+    // Poll companion every 1000ms for instantaneous reaction
+    setInterval(syncCompanion, 1000);
+
+    // 11. NATURAL LANGUAGE COMMAND DISPATCHER (For In-App Search Inputs)
     function executeVoiceCommand(spokenText) {
         if (!spokenText || !spokenText.trim()) return;
         var text = spokenText.toLowerCase().trim();
 
-        // YouTube Search
-        if (text.indexOf('search') !== -1 && text.indexOf('youtube') !== -1) {
-            var q = spokenText.replace(/search/gi, '').replace(/youtube/gi, '').replace(/for/gi, '').trim();
-            searchYouTube(q || "Bengali songs");
+        if (text.indexOf('youtube') !== -1 || text.indexOf('video') !== -1 || text.indexOf('song') !== -1 || text.indexOf('bengali') !== -1) {
+            var q = spokenText.replace(/search/gi, '').replace(/youtube/gi, '').replace(/for/gi, '').replace(/play/gi, '').trim();
+            loadEmbeddedYouTube(q || "Bengali songs");
             return;
         }
 
-        // Open YouTube
-        if (text.indexOf('youtube') !== -1) {
-            launchYouTube();
-            return;
-        }
-
-        // Play Spotify
         if (text.indexOf('spotify') !== -1 || text.indexOf('music') !== -1) {
-            launchSpotify();
+            loadEmbeddedSpotify('playlist/37i9dQZF1DX0XUfTFmZeMt', "Today's Top Hits");
             return;
         }
 
-        // Open Netflix
+        if (text.indexOf('cinema') !== -1 || text.indexOf('fullscreen') !== -1) {
+            toggleCinemaMode();
+            return;
+        }
+
         if (text.indexOf('netflix') !== -1) {
             launchApp('11101200001', 'Netflix');
             return;
         }
 
-        // Open Prime Video
         if (text.indexOf('prime') !== -1 || text.indexOf('amazon') !== -1) {
             launchApp('3201512006785', 'Prime Video');
             return;
         }
 
-        // Open Browser
-        if (text.indexOf('browser') !== -1 || text.indexOf('internet') !== -1) {
-            launchApp('org.tizen.browser', 'Web Browser');
-            return;
-        }
-
-        // Navigation
         if (text.indexOf('home') !== -1) {
             switchTab('home');
             showAssistantHud(spokenText, "GO HOME", "Returned to Home Smart Hub.", true);
             return;
         }
-        if (text.indexOf('app') !== -1) {
-            switchTab('apps');
-            showAssistantHud(spokenText, "OPEN APPS", "Opened TV Apps hub.", true);
-            return;
-        }
-        if (text.indexOf('search') !== -1) {
-            switchTab('search');
-            showAssistantHud(spokenText, "SEARCH", "Opened Universal TV Search.", true);
-            return;
-        }
 
-        // Volume
         if (text.indexOf('volume up') !== -1 || text.indexOf('louder') !== -1) {
             adjustVolume(3);
             showAssistantHud(spokenText, "VOLUME +3", "Volume adjusted.", true);
             return;
         }
+
         if (text.indexOf('volume down') !== -1 || text.indexOf('lower') !== -1) {
             adjustVolume(-3);
             showAssistantHud(spokenText, "VOLUME -3", "Volume adjusted.", true);
             return;
         }
 
-        // General AI Conversational Reply
-        showAssistantHud(spokenText, "AI ASSISTANT", "Querying assistant on your Galaxy M30s...", false);
+        // General AI Conversational Query: query phone server
+        showAssistantHud(spokenText, "AI ASSISTANT", "Querying assistant on Galaxy M30s...", false);
         queryOpenRouterCompanion(spokenText);
     }
 
@@ -546,99 +588,10 @@
         } catch (_) {}
     }
 
-    // 13. LOCAL COMPANION HEARTBEAT & ASSISTANT SYNC (Phone <-> TV)
-    function syncCompanion() {
-        var host = companionPhoneIp;
-        if (!host) return;
-
-        // 1. Send Heartbeat to Phone
-        try {
-            var hbXhr = new XMLHttpRequest();
-            hbXhr.open("POST", "http://" + host + ":8080/api/tv/heartbeat", true);
-            hbXhr.setRequestHeader("Content-Type", "application/json");
-            hbXhr.timeout = 2000;
-            hbXhr.onreadystatechange = function () {
-                if (hbXhr.readyState === 4 && hbXhr.status === 200) {
-                    if (topCompanionText) topCompanionText.textContent = "Galaxy M30s Linked";
-                    if (diagCompanionStatus) diagCompanionStatus.textContent = "Linked (" + host + ":8080)";
-                }
-            };
-            hbXhr.send(JSON.stringify({ tvModel: "UA32T4410", status: "online" }));
-        } catch (_) {}
-
-        // 2. Poll Latest Command from Phone (Instant Pop-up without changing screen tab)
-        try {
-            var pollXhr = new XMLHttpRequest();
-            pollXhr.open("GET", "http://" + host + ":8080/api/assistant/latest", true);
-            pollXhr.timeout = 2000;
-            pollXhr.onreadystatechange = function () {
-                if (pollXhr.readyState === 4 && pollXhr.status === 200) {
-                    try {
-                        var data = JSON.parse(pollXhr.responseText);
-                        if (data && data.id && data.id !== lastProcessedMessageId) {
-                            lastProcessedMessageId = data.id;
-                            handleCompanionCommand(data);
-                        }
-                    } catch (_) {}
-                }
-            };
-            pollXhr.send();
-        } catch (_) {}
-    }
-
-    function handleCompanionCommand(cmd) {
-        console.log("Received command from Galaxy M30s:", cmd);
-
-        // CASE 1: Phone started listening -> Instant Pop-up HUD without leaving current tab!
-        if (cmd.actionType === "LISTENING") {
-            showAssistantHud(cmd.query || "Listening...", "VOICE LISTENER", cmd.response || "Speak into your Galaxy M30s microphone...", false);
-            return;
-        }
-
-        // CASE 2: Phone is processing/thinking
-        if (cmd.actionType === "THINKING") {
-            showAssistantHud(cmd.query || "Processing...", "THINKING", cmd.response || "Analyzing your command...", false);
-            return;
-        }
-
-        // CASE 3: Command or AI response received -> Pop-up and Speak Aloud on TV!
-        if (cmd.query || cmd.response) {
-            showAssistantHud(
-                cmd.query || "Voice Command",
-                cmd.actionType || "AI ASSISTANT",
-                cmd.response || "Command executed",
-                true // Speak aloud on TV
-            );
-        }
-
-        // Execute genuine application actions
-        if (cmd.actionType === "LAUNCH_APP") {
-            var target = (cmd.actionTarget || "").toLowerCase();
-            if (target === "youtube" || target === "111299001912") {
-                launchYouTube();
-            } else if (target === "spotify" || target === "3201606009684") {
-                launchSpotify();
-            } else if (target === "netflix" || target === "11101200001") {
-                launchApp('11101200001', 'Netflix');
-            } else if (target === "prime" || target === "3201512006785") {
-                launchApp('3201512006785', 'Prime Video');
-            }
-        } else if (cmd.actionType === "SEARCH_YOUTUBE") {
-            searchYouTube(cmd.actionTarget || cmd.query);
-        } else if (cmd.actionType === "VOLUME") {
-            var delta = parseInt(cmd.actionTarget, 10) || 3;
-            adjustVolume(delta);
-        } else if (cmd.actionType === "NAV_TAB") {
-            switchTab(cmd.actionTarget || 'home');
-        }
-    }
-
-    // Poll companion every 1000ms for instantaneous pop-up reaction
-    setInterval(syncCompanion, 1000);
-
-    // 14. TIZEN TV HARDWARE REMOTE KEY REGISTRATION
+    // 12. TIZEN TV HARDWARE REMOTE KEY REGISTRATION
     function registerTizenKeys() {
         if (typeof tizen !== 'undefined' && tizen.tvinputdevice) {
+            // Register ONLY non-basic media and color keys
             var keys = [
                 'MediaPlay', 'MediaPause', 'MediaStop', 'MediaFastForward', 'MediaRewind',
                 'ColorF0Red', 'ColorF1Green', 'ColorF2Yellow', 'ColorF3Blue',
@@ -654,12 +607,17 @@
         }
     }
 
-    // 15. 2D SPATIAL NAVIGATION FOR D-PAD (Arrow Up, Down, Left, Right)
+    // 13. 2D SPATIAL NAVIGATION FOR D-PAD (Arrow Up, Down, Left, Right)
     function getFocusableElements() {
         var selectors = [
-            '#tabHome', '#tabApps', '#tabSearch', '#tabAssistant', '#tabSettings',
+            '#tabHome', '#tabYoutube', '#tabSpotify', '#tabApps', '#tabSearch', '#tabAssistant', '#tabSettings',
             '#globalTvSearchInput',
             '#headerMicBtn',
+            '.tab-view.active .media-chip',
+            '.tab-view.active .yt-video-card',
+            '.tab-view.active .player-action-btn',
+            '.tab-view.active .yt-search-input-box input',
+            '.tab-view.active .yt-search-input-box button',
             '.tab-view.active .prompt-chip',
             '.tab-view.active .feature-card',
             '.tab-view.active .app-detail-card',
@@ -694,7 +652,8 @@
         if (!elements || elements.length === 0) return;
 
         var current = document.activeElement;
-        if (!current || elements.indexOf(current) === -1) {
+        // If nothing is focused or focus is on document.body, pick active tab
+        if (!current || current === document.body || elements.indexOf(current) === -1) {
             var activeTab = document.querySelector('.nav-tab.active') || elements[0];
             activeTab.focus();
             return;
@@ -747,7 +706,7 @@
             }
 
             if (isCandidate) {
-                var score = primaryDist + secondaryDist * 2.0;
+                var score = primaryDist + secondaryDist * 1.8;
                 if (score < bestScore) {
                     bestScore = score;
                     bestMatch = el;
@@ -763,8 +722,10 @@
                     bestMatch = activeRailTab;
                 }
             } else if (dir === 'right') {
-                var firstActionEl = document.querySelector('.tab-view.active .prompt-chip') ||
-                                    document.querySelector('.tab-view.active .feature-card') ||
+                var firstActionEl = document.querySelector('.tab-view.active .media-chip') ||
+                                    document.querySelector('.tab-view.active .prompt-chip') ||
+                                    document.querySelector('.tab-view.active .yt-video-card') ||
+                                    document.querySelector('.tab-view.active input') ||
                                     document.getElementById('globalTvSearchInput');
                 if (firstActionEl && firstActionEl !== current) {
                     bestMatch = firstActionEl;
@@ -780,10 +741,12 @@
         }
     }
 
-    // 16. BACK KEY HANDLING (Physical Return button and ESC)
+    // 14. BACK KEY HANDLING (Physical Return button and ESC)
     function handleBackKey() {
         showRemoteBadge("⮌ BACK");
-        if (assistantHudOverlay && !assistantHudOverlay.classList.contains('hidden')) {
+        if (isCinemaMode) {
+            exitCinemaMode();
+        } else if (assistantHudOverlay && !assistantHudOverlay.classList.contains('hidden')) {
             hideAssistantHud();
         } else if (currentActiveTab !== 'home') {
             switchTab('home');
@@ -807,8 +770,8 @@
         }
     });
 
-    // 17. REMOTE KEY EVENT LISTENER
-    window.addEventListener('keydown', function (e) {
+    // 15. REMOTE KEY EVENT LISTENER
+    function onRemoteKeyDown(e) {
         var keyCode = e.keyCode;
         console.log("TV Remote Keycode:", keyCode);
 
@@ -838,7 +801,7 @@
                 if (document.activeElement) {
                     if (document.activeElement.tagName === 'INPUT') {
                         // Let input handle enter natively
-                    } else {
+                    } else if (typeof document.activeElement.click === 'function') {
                         document.activeElement.click();
                         e.preventDefault();
                     }
@@ -877,39 +840,42 @@
                 showRemoteBadge("🔴 HOME");
                 switchTab('home');
                 break;
-            case 404:   // Green key -> Apps
-                showRemoteBadge("🟢 APPS");
-                switchTab('apps');
+            case 404:   // Green key -> YouTube
+                showRemoteBadge("🟢 YOUTUBE");
+                switchTab('youtube');
                 break;
-            case 405:   // Yellow key -> Search
-                showRemoteBadge("🟡 SEARCH");
+            case 405:   // Yellow key -> Spotify
+                showRemoteBadge("🟡 SPOTIFY");
+                switchTab('spotify');
+                break;
+            case 406:   // Blue key -> Search
+                showRemoteBadge("🔵 SEARCH");
                 switchTab('search');
-                break;
-            case 406:   // Blue key -> Assistant
-                showRemoteBadge("🔵 ASSISTANT");
-                switchTab('assistant');
                 break;
             case 49: // '1' -> Home
                 switchTab('home');
                 break;
-            case 50: // '2' -> Apps
+            case 50: // '2' -> YouTube
+                switchTab('youtube');
+                break;
+            case 51: // '3' -> Spotify
+                switchTab('spotify');
+                break;
+            case 52: // '4' -> Apps
                 switchTab('apps');
                 break;
-            case 51: // '3' -> Search
+            case 53: // '5' -> Search
                 switchTab('search');
-                break;
-            case 52: // '4' -> Assistant
-                switchTab('assistant');
-                break;
-            case 53: // '5' -> Settings
-                switchTab('settings');
                 break;
             default:
                 break;
         }
-    });
+    }
 
-    // 18. UI EVENT LISTENERS
+    window.addEventListener('keydown', onRemoteKeyDown, true);
+    document.addEventListener('keydown', onRemoteKeyDown, true);
+
+    // 16. UI EVENT LISTENERS
     navTabs.forEach(function (tab) {
         tab.addEventListener('click', function () {
             switchTab(this.getAttribute('data-tab'));
@@ -927,10 +893,18 @@
         });
     }
 
+    if (ytSearchBox) {
+        ytSearchBox.addEventListener('keydown', function (e) {
+            if (e.keyCode === 13 && this.value.trim()) {
+                loadEmbeddedYouTube(this.value.trim());
+            }
+        });
+    }
+
     if (dedicatedSearchInput) {
         dedicatedSearchInput.addEventListener('keydown', function (e) {
             if (e.keyCode === 13 && this.value.trim()) {
-                searchYouTube(this.value.trim());
+                loadEmbeddedYouTube(this.value.trim());
             }
         });
     }
@@ -938,13 +912,13 @@
     if (btnSearchYouTube) {
         btnSearchYouTube.addEventListener('click', function () {
             var q = dedicatedSearchInput ? dedicatedSearchInput.value.trim() : "";
-            searchYouTube(q || "Bengali songs");
+            loadEmbeddedYouTube(q || "Bengali songs");
         });
     }
 
     if (btnSearchSpotify) {
         btnSearchSpotify.addEventListener('click', function () {
-            launchSpotify();
+            loadEmbeddedSpotify('playlist/37i9dQZF1DX0XUfTFmZeMt', "Today's Top Hits");
         });
     }
 
@@ -983,13 +957,17 @@
         });
     }
 
-    // 19. EXPOSE GLOBAL TV APP INTERFACE
+    // 17. EXPOSE GLOBAL TV APP INTERFACE
     window.TvApp = {
         switchTab: switchTab,
         launchApp: launchApp,
-        launchYouTube: launchYouTube,
-        launchSpotify: launchSpotify,
-        searchYouTube: searchYouTube,
+        launchYouTube: function () { loadEmbeddedYouTube("Bengali songs"); },
+        launchSpotify: function () { loadEmbeddedSpotify('playlist/37i9dQZF1DX0XUfTFmZeMt', "Today's Top Hits"); },
+        loadEmbeddedYouTube: loadEmbeddedYouTube,
+        loadEmbeddedSpotify: loadEmbeddedSpotify,
+        searchYouTube: loadEmbeddedYouTube,
+        toggleCinemaMode: toggleCinemaMode,
+        exitCinemaMode: exitCinemaMode,
         executeVoiceCommand: executeVoiceCommand,
         showAssistant: showAssistantHud,
         speak: speakOnTv,
@@ -998,12 +976,12 @@
         moveFocus: moveFocus
     };
 
-    // 20. INITIALIZATION
+    // 18. INITIALIZATION
     registerTizenKeys();
-    scanInstalledApps();
     switchTab('home');
 
     // Auto-focus default tab on app open so TV remote is active immediately
+    document.body.tabIndex = 0;
     setTimeout(function () {
         var tabHome = document.getElementById('tabHome');
         if (tabHome) {
@@ -1011,5 +989,5 @@
         }
     }, 150);
 
-    console.log("Samsung Smart TV AI Entertainment Hub loaded successfully with Genuine YouTube & Spotify Launchers.");
+    console.log("Samsung Smart TV AI Entertainment Hub loaded with In-App Real YouTube TV & Spotify Web Player.");
 })();

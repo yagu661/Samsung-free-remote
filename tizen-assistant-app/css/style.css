@@ -1298,9 +1298,330 @@ button:focus,
 .btn-search-action:focus, 
 .suggest-chip:focus, 
 .mic-shortcut-hint:focus,
+.media-chip:focus,
 input:focus {
     outline: 4px solid #00E676 !important;
     outline-offset: 3px !important;
     box-shadow: 0 0 30px rgba(0, 230, 118, 0.85) !important;
     transform: scale(1.04);
 }
+
+/* Embedded Media Players (YouTube & Spotify) */
+.embedded-player-container {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    height: 100%;
+    padding: 0 4px 20px 4px;
+}
+
+.player-header-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid var(--border-subtle);
+    border-radius: 16px;
+    padding: 12px 20px;
+}
+
+.player-title-group {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.player-icon-badge {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.player-icon-badge.yt-bg {
+    background: #E50914;
+}
+
+.player-icon-badge.spotify-bg {
+    background: #1DB954;
+}
+
+.player-icon-badge svg {
+    width: 22px;
+    height: 22px;
+    fill: #FFF;
+}
+
+.player-title-group h2 {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0;
+}
+
+.player-voice-badge {
+    background: rgba(0, 230, 118, 0.15);
+    border: 1px solid var(--primary-neon);
+    color: var(--primary-neon);
+    font-size: 13px;
+    font-weight: 700;
+    padding: 6px 14px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.player-chips-row {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+}
+
+.media-chip {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+    outline: none;
+}
+
+.media-chip:hover, .media-chip:focus {
+    background: rgba(0, 230, 118, 0.2);
+    border-color: var(--primary-neon);
+    color: var(--primary-neon);
+    transform: scale(1.05);
+}
+
+.youtube-frame-wrapper {
+    position: relative;
+    width: 100%;
+    height: 480px;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #000;
+    border: 2px solid rgba(255, 0, 0, 0.4);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+    transition: all 0.3s ease;
+}
+
+.youtube-frame-wrapper.cinema-fullscreen {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 99999 !important;
+    border-radius: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.cinema-exit-hint {
+    display: none;
+    position: fixed;
+    top: 24px;
+    right: 32px;
+    background: rgba(10, 16, 28, 0.94);
+    color: var(--primary-neon);
+    border: 2px solid var(--primary-neon);
+    padding: 8px 18px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 700;
+    z-index: 100000;
+    box-shadow: 0 0 20px rgba(0, 230, 118, 0.5);
+}
+
+.youtube-frame-wrapper.cinema-fullscreen ~ .cinema-exit-hint {
+    display: block;
+}
+
+.youtube-frame-wrapper iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
+.player-actions-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.player-action-btn {
+    background: rgba(30, 41, 59, 0.85);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-primary);
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    outline: none;
+}
+
+.player-action-btn:hover, .player-action-btn:focus {
+    background: var(--primary-neon);
+    color: #06090E;
+    border-color: var(--primary-neon);
+    transform: scale(1.05);
+    box-shadow: 0 0 20px rgba(0, 230, 118, 0.7);
+}
+
+.yt-search-container {
+    margin-bottom: 14px;
+}
+
+.yt-search-input-box {
+    display: flex;
+    gap: 10px;
+    max-width: 600px;
+}
+
+.yt-search-input-box input {
+    flex: 1;
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-primary);
+    padding: 10px 16px;
+    border-radius: 12px;
+    font-size: 15px;
+    outline: none;
+    transition: all 0.2s ease;
+}
+
+.yt-search-input-box input:focus {
+    border-color: var(--primary-neon);
+    box-shadow: 0 0 16px rgba(0, 230, 118, 0.4);
+}
+
+.yt-search-input-box button {
+    background: var(--primary-neon);
+    color: #050B14;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 12px;
+    font-weight: 800;
+    font-size: 14px;
+    cursor: pointer;
+    outline: none;
+    transition: all 0.2s ease;
+}
+
+.yt-search-input-box button:focus, .yt-search-input-box button:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 20px rgba(0, 230, 118, 0.8);
+}
+
+/* Curated Video Grid */
+.yt-video-section {
+    margin-top: 24px;
+    padding-bottom: 30px;
+}
+
+.yt-section-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 14px;
+    letter-spacing: 0.3px;
+}
+
+.yt-video-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+}
+
+.yt-video-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 14px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    outline: none;
+}
+
+.yt-video-card:hover, .yt-video-card:focus {
+    border-color: var(--primary-neon) !important;
+    transform: translateY(-6px) scale(1.03);
+    box-shadow: 0 12px 30px rgba(0, 230, 118, 0.5) !important;
+    outline: 4px solid var(--primary-neon) !important;
+    outline-offset: 2px !important;
+}
+
+.yt-card-thumb {
+    width: 100%;
+    height: 120px;
+    background-size: cover;
+    background-position: center;
+    position: relative;
+    background-color: #1a1a2e;
+}
+
+.yt-duration {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    background: rgba(0, 0, 0, 0.85);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.yt-card-body {
+    padding: 12px;
+}
+
+.yt-card-body h4 {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.yt-card-body p {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.spotify-frame-wrapper {
+    position: relative;
+    width: 100%;
+    height: 520px;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #121212;
+    border: 2px solid rgba(29, 185, 84, 0.4);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+    transition: all 0.3s ease;
+}
+
+.spotify-frame-wrapper:focus-within {
+    border-color: var(--primary-neon);
+    box-shadow: 0 0 35px rgba(0, 230, 118, 0.6);
+}
+
+.spotify-frame-wrapper iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+

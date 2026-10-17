@@ -344,8 +344,18 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
     // --- Remote Key Actions ---
 
     fun sendKey(key: RemoteKey): String? {
+        // 1. Send via WebSocket to Samsung TV hardware (if connected)
         val result = tvController.sendRemoteKey(key)
-        return result.exceptionOrNull()?.message
+
+        // 2. Dual-dispatch: Broadcast to our In-App TV companion server so every button responds immediately
+        tvDeployServer.broadcastAssistantCommand(
+            query = key.label,
+            response = "Key ${key.keyName}",
+            actionType = "REMOTE_KEY",
+            actionTarget = key.keyName
+        )
+
+        return if (tvDeployServer.state.value.isRunning) null else result.exceptionOrNull()?.message
     }
 
     fun launchApp(app: TvApp) {
@@ -650,6 +660,14 @@ class SamsungRemoteViewModel(application: Application) : AndroidViewModel(applic
             } else {
                 _youtubeSearchState.value = _youtubeSearchState.value.copy(step2TvConnected = true)
             }
+
+            // Broadcast to In-App YouTube TV on Tizen
+            tvDeployServer.broadcastAssistantCommand(
+                query = query,
+                response = "Playing $query on in-app YouTube TV",
+                actionType = "SEARCH_YOUTUBE",
+                actionTarget = query
+            )
 
             // Step 3 & 4 execution
             val result: YouTubeSearchResult = tvController.searchYouTube(query)
